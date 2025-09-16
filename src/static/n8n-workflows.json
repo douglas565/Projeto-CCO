@@ -1,0 +1,558 @@
+{
+  "workflows": [
+    {
+      "name": "Diário de Planejamento - Workflow Principal",
+      "description": "Workflow principal para processar dados do diário de planejamento",
+      "nodes": [
+        {
+          "name": "Webhook Planejamento",
+          "type": "n8n-nodes-base.webhook",
+          "parameters": {
+            "path": "planejamento",
+            "httpMethod": "POST"
+          },
+          "position": [250, 300]
+        },
+        {
+          "name": "Validar Dados Planejamento",
+          "type": "n8n-nodes-base.function",
+          "parameters": {
+            "functionCode": "// Validar dados do planejamento\nconst data = items[0].json.data;\n\n// Verificar campos obrigatórios\nconst requiredFields = ['data', 'turno', 'equipe', 'colaborador1'];\nconst missingFields = requiredFields.filter(field => !data[field]);\n\nif (missingFields.length > 0) {\n  throw new Error(`Campos obrigatórios faltando: ${missingFields.join(', ')}`);\n}\n\n// Validar formato da data\nconst dateRegex = /^\\d{4}-\\d{2}-\\d{2}$/;\nif (!dateRegex.test(data.data)) {\n  throw new Error('Formato de data inválido');\n}\n\nreturn items;"
+          },
+          "position": [450, 300]
+        },
+        {
+          "name": "Salvar no Banco",
+          "type": "n8n-nodes-base.postgres",
+          "parameters": {
+            "operation": "insert",
+            "table": "diario_planejamento",
+            "columns": "data, turno, equipe, colaborador1, colaborador2, veiculo, regiao, created_at",
+            "additionalFields": {
+              "mode": "defineBelow",
+              "values": {
+                "data": "={{$json.data.data}}",
+                "turno": "={{$json.data.turno}}",
+                "equipe": "={{$json.data.equipe}}",
+                "colaborador1": "={{$json.data.colaborador1}}",
+                "colaborador2": "={{$json.data.colaborador2}}",
+                "veiculo": "={{$json.data.veiculo}}",
+                "regiao": "={{$json.data.regiao}}",
+                "created_at": "={{$now}}"
+              }
+            }
+          },
+          "position": [650, 300]
+        },
+        {
+          "name": "Notificar Supervisor",
+          "type": "n8n-nodes-base.emailSend",
+          "parameters": {
+            "fromEmail": "sistema@empresa.com",
+            "toEmail": "supervisor@empresa.com",
+            "subject": "Novo Planejamento Registrado - {{$json.data.equipe}}",
+            "text": "Um novo planejamento foi registrado para a equipe {{$json.data.equipe}} no turno {{$json.data.turno}} em {{$json.data.data}}.\n\nColaboradores:\n- {{$json.data.colaborador1}}\n- {{$json.data.colaborador2}}\n\nVeículo: {{$json.data.veiculo}}\nRegião: {{$json.data.regiao}}"
+          },
+          "position": [850, 300]
+        }
+      ],
+      "connections": {
+        "Webhook Planejamento": {
+          "main": [
+            [
+              {
+                "node": "Validar Dados Planejamento",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Validar Dados Planejamento": {
+          "main": [
+            [
+              {
+                "node": "Salvar no Banco",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Salvar no Banco": {
+          "main": [
+            [
+              {
+                "node": "Notificar Supervisor",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Triagem OS - Workflow",
+      "description": "Workflow para processar dados da triagem de OS",
+      "nodes": [
+        {
+          "name": "Webhook Triagem",
+          "type": "n8n-nodes-base.webhook",
+          "parameters": {
+            "path": "triagem",
+            "httpMethod": "POST"
+          },
+          "position": [250, 300]
+        },
+        {
+          "name": "Calcular Métricas",
+          "type": "n8n-nodes-base.function",
+          "parameters": {
+            "functionCode": "// Calcular métricas da triagem\nconst data = items[0].json.data;\nconst workflowData = items[0].json.workflowData;\n\nconst protocolosPrazo = parseInt(data.protocolos_prazo) || 0;\nconst protocolosVencidos = parseInt(data.protocolos_vencidos) || 0;\nconst total = protocolosPrazo + protocolosVencidos;\n\n// Calcular percentual de protocolos vencidos\nconst percentualVencidos = total > 0 ? (protocolosVencidos / total) * 100 : 0;\n\n// Determinar status baseado no percentual\nlet status = 'normal';\nif (percentualVencidos > 30) {\n  status = 'critico';\n} else if (percentualVencidos > 15) {\n  status = 'atencao';\n}\n\nreturn [{\n  json: {\n    ...items[0].json,\n    metricas: {\n      total_protocolos: total,\n      percentual_vencidos: percentualVencidos,\n      status: status\n    }\n  }\n}];"
+          },
+          "position": [450, 300]
+        },
+        {
+          "name": "Atualizar Banco",
+          "type": "n8n-nodes-base.postgres",
+          "parameters": {
+            "operation": "update",
+            "table": "diario_planejamento",
+            "updateKey": "id",
+            "columns": "protocolos_prazo, protocolos_vencidos, total_protocolos, comentario_triagem, status_triagem",
+            "additionalFields": {
+              "mode": "defineBelow",
+              "values": {
+                "protocolos_prazo": "={{$json.data.protocolos_prazo}}",
+                "protocolos_vencidos": "={{$json.data.protocolos_vencidos}}",
+                "total_protocolos": "={{$json.metricas.total_protocolos}}",
+                "comentario_triagem": "={{$json.data.comentario_triagem}}",
+                "status_triagem": "={{$json.metricas.status}}"
+              }
+            }
+          },
+          "position": [650, 300]
+        },
+        {
+          "name": "Verificar Status Crítico",
+          "type": "n8n-nodes-base.if",
+          "parameters": {
+            "conditions": {
+              "string": [
+                {
+                  "value1": "={{$json.metricas.status}}",
+                  "operation": "equal",
+                  "value2": "critico"
+                }
+              ]
+            }
+          },
+          "position": [850, 300]
+        },
+        {
+          "name": "Alerta Crítico",
+          "type": "n8n-nodes-base.emailSend",
+          "parameters": {
+            "fromEmail": "sistema@empresa.com",
+            "toEmail": "gerencia@empresa.com",
+            "subject": "ALERTA: Alto Percentual de Protocolos Vencidos",
+            "text": "ATENÇÃO: A equipe {{$json.workflowData.planejamento.equipe}} apresenta {{$json.metricas.percentual_vencidos}}% de protocolos vencidos.\n\nDetalhes:\n- Total de protocolos: {{$json.metricas.total_protocolos}}\n- Protocolos vencidos: {{$json.data.protocolos_vencidos}}\n- Data: {{$json.workflowData.planejamento.data}}\n- Turno: {{$json.workflowData.planejamento.turno}}\n\nComentário: {{$json.data.comentario_triagem}}"
+          },
+          "position": [1050, 250]
+        }
+      ],
+      "connections": {
+        "Webhook Triagem": {
+          "main": [
+            [
+              {
+                "node": "Calcular Métricas",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Calcular Métricas": {
+          "main": [
+            [
+              {
+                "node": "Atualizar Banco",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Atualizar Banco": {
+          "main": [
+            [
+              {
+                "node": "Verificar Status Crítico",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Verificar Status Crítico": {
+          "main": [
+            [
+              {
+                "node": "Alerta Crítico",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Execução - Workflow",
+      "description": "Workflow para processar dados da execução",
+      "nodes": [
+        {
+          "name": "Webhook Execução",
+          "type": "n8n-nodes-base.webhook",
+          "parameters": {
+            "path": "execucao",
+            "httpMethod": "POST"
+          },
+          "position": [250, 300]
+        },
+        {
+          "name": "Calcular Eficiência",
+          "type": "n8n-nodes-base.function",
+          "parameters": {
+            "functionCode": "// Calcular eficiência da execução\nconst execucaoData = items[0].json.data;\nconst workflowData = items[0].json.workflowData;\n\nconst atendido = parseInt(execucaoData.atendido) || 0;\nconst impossibilidade = parseInt(execucaoData.impossibilidade) || 0;\nconst naoExecutado = parseInt(execucaoData.nao_executado) || 0;\nconst totalProtocolos = parseInt(workflowData.triagem.total_protocolos) || 1;\n\n// Calcular métricas\nconst eficiencia = Math.round((atendido / totalProtocolos) * 100);\nconst taxaProblemas = Math.round((impossibilidade / totalProtocolos) * 100);\n\n// Determinar classificação\nlet classificacao = 'excelente';\nif (eficiencia < 70) {\n  classificacao = 'ruim';\n} else if (eficiencia < 85) {\n  classificacao = 'regular';\n} else if (eficiencia < 95) {\n  classificacao = 'bom';\n}\n\nreturn [{\n  json: {\n    ...items[0].json,\n    metricas: {\n      eficiencia: eficiencia,\n      taxa_problemas: taxaProblemas,\n      classificacao: classificacao,\n      total_executado: atendido + impossibilidade + naoExecutado\n    }\n  }\n}];"
+          },
+          "position": [450, 300]
+        },
+        {
+          "name": "Atualizar Execução",
+          "type": "n8n-nodes-base.postgres",
+          "parameters": {
+            "operation": "update",
+            "table": "diario_planejamento",
+            "updateKey": "id",
+            "columns": "atendido, impossibilidade, nao_executado, comentario_execucao, eficiencia, classificacao",
+            "additionalFields": {
+              "mode": "defineBelow",
+              "values": {
+                "atendido": "={{$json.data.atendido}}",
+                "impossibilidade": "={{$json.data.impossibilidade}}",
+                "nao_executado": "={{$json.data.nao_executado}}",
+                "comentario_execucao": "={{$json.data.comentario_execucao}}",
+                "eficiencia": "={{$json.metricas.eficiencia}}",
+                "classificacao": "={{$json.metricas.classificacao}}"
+              }
+            }
+          },
+          "position": [650, 300]
+        },
+        {
+          "name": "Gerar Relatório Automático",
+          "type": "n8n-nodes-base.function",
+          "parameters": {
+            "functionCode": "// Gerar relatório automático da execução\nconst data = items[0].json;\nconst workflowData = data.workflowData;\nconst metricas = data.metricas;\n\nconst relatorio = {\n  data: workflowData.planejamento.data,\n  turno: workflowData.planejamento.turno,\n  equipe: workflowData.planejamento.equipe,\n  colaboradores: [workflowData.planejamento.colaborador1, workflowData.planejamento.colaborador2].filter(Boolean),\n  protocolos: {\n    total: workflowData.triagem.total_protocolos,\n    no_prazo: workflowData.triagem.protocolos_prazo,\n    vencidos: workflowData.triagem.protocolos_vencidos\n  },\n  execucao: {\n    atendido: data.data.atendido,\n    impossibilidade: data.data.impossibilidade,\n    nao_executado: data.data.nao_executado,\n    eficiencia: metricas.eficiencia,\n    classificacao: metricas.classificacao\n  },\n  comentarios: {\n    triagem: workflowData.triagem.comentario_triagem,\n    execucao: data.data.comentario_execucao\n  },\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: { relatorio } }];"
+          },
+          "position": [850, 300]
+        }
+      ],
+      "connections": {
+        "Webhook Execução": {
+          "main": [
+            [
+              {
+                "node": "Calcular Eficiência",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Calcular Eficiência": {
+          "main": [
+            [
+              {
+                "node": "Atualizar Execução",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Atualizar Execução": {
+          "main": [
+            [
+              {
+                "node": "Gerar Relatório Automático",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Supervisão - Workflow",
+      "description": "Workflow para processar dados da supervisão",
+      "nodes": [
+        {
+          "name": "Webhook Supervisão",
+          "type": "n8n-nodes-base.webhook",
+          "parameters": {
+            "path": "supervisao",
+            "httpMethod": "POST"
+          },
+          "position": [250, 300]
+        },
+        {
+          "name": "Análise de Sentimento",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://api.openai.com/v1/chat/completions",
+            "authentication": "predefinedCredentialType",
+            "nodeCredentialType": "openAiApi",
+            "method": "POST",
+            "sendHeaders": true,
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "bodyParameters": {
+              "parameters": [
+                {
+                  "name": "model",
+                  "value": "gpt-3.5-turbo"
+                },
+                {
+                  "name": "messages",
+                  "value": "[{\"role\": \"user\", \"content\": \"Analise o sentimento do seguinte comentário de supervisão e classifique como positivo, neutro ou negativo. Também identifique pontos de atenção se houver: {{$json.data.comentario_supervisor}}\"}]"
+                }
+              ]
+            }
+          },
+          "position": [450, 300]
+        },
+        {
+          "name": "Processar Análise",
+          "type": "n8n-nodes-base.function",
+          "parameters": {
+            "functionCode": "// Processar resultado da análise de sentimento\nconst response = items[0].json.choices[0].message.content;\nconst originalData = items[0].json;\n\n// Extrair sentimento (simplificado)\nlet sentimento = 'neutro';\nif (response.toLowerCase().includes('positivo')) {\n  sentimento = 'positivo';\n} else if (response.toLowerCase().includes('negativo')) {\n  sentimento = 'negativo';\n}\n\n// Verificar se há pontos de atenção\nconst pontosAtencao = response.toLowerCase().includes('atenção') || \n                     response.toLowerCase().includes('problema') ||\n                     response.toLowerCase().includes('preocupação');\n\nreturn [{\n  json: {\n    ...originalData,\n    analise: {\n      sentimento: sentimento,\n      pontos_atencao: pontosAtencao,\n      analise_completa: response\n    }\n  }\n}];"
+          },
+          "position": [650, 300]
+        },
+        {
+          "name": "Salvar Supervisão",
+          "type": "n8n-nodes-base.postgres",
+          "parameters": {
+            "operation": "update",
+            "table": "diario_planejamento",
+            "updateKey": "id",
+            "columns": "comentario_supervisor, sentimento_supervisao, pontos_atencao, status_final",
+            "additionalFields": {
+              "mode": "defineBelow",
+              "values": {
+                "comentario_supervisor": "={{$json.data.comentario_supervisor}}",
+                "sentimento_supervisao": "={{$json.analise.sentimento}}",
+                "pontos_atencao": "={{$json.analise.pontos_atencao}}",
+                "status_final": "supervisionado"
+              }
+            }
+          },
+          "position": [850, 300]
+        }
+      ],
+      "connections": {
+        "Webhook Supervisão": {
+          "main": [
+            [
+              {
+                "node": "Análise de Sentimento",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Análise de Sentimento": {
+          "main": [
+            [
+              {
+                "node": "Processar Análise",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Processar Análise": {
+          "main": [
+            [
+              {
+                "node": "Salvar Supervisão",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Relatórios - Workflow Final",
+      "description": "Workflow para finalizar e gerar relatórios",
+      "nodes": [
+        {
+          "name": "Webhook Relatórios",
+          "type": "n8n-nodes-base.webhook",
+          "parameters": {
+            "path": "relatorios",
+            "httpMethod": "POST"
+          },
+          "position": [250, 300]
+        },
+        {
+          "name": "Gerar Relatório Final",
+          "type": "n8n-nodes-base.function",
+          "parameters": {
+            "functionCode": "// Gerar relatório final consolidado\nconst workflowData = items[0].json.workflowData;\n\nconst relatorioFinal = {\n  cabecalho: {\n    data: workflowData.planejamento.data,\n    turno: workflowData.planejamento.turno,\n    equipe: workflowData.planejamento.equipe,\n    colaboradores: [\n      workflowData.planejamento.colaborador1,\n      workflowData.planejamento.colaborador2\n    ].filter(Boolean),\n    veiculo: workflowData.planejamento.veiculo,\n    regiao: workflowData.planejamento.regiao\n  },\n  protocolos: {\n    no_prazo: parseInt(workflowData.triagem.protocolos_prazo) || 0,\n    vencidos: parseInt(workflowData.triagem.protocolos_vencidos) || 0,\n    total: parseInt(workflowData.triagem.total_protocolos) || 0\n  },\n  execucao: {\n    atendido: parseInt(workflowData.execucao.atendido) || 0,\n    impossibilidade: parseInt(workflowData.execucao.impossibilidade) || 0,\n    nao_executado: parseInt(workflowData.execucao.nao_executado) || 0\n  },\n  comentarios: {\n    triagem: workflowData.triagem.comentario_triagem,\n    execucao: workflowData.execucao.comentario_execucao,\n    supervisor: workflowData.supervisao.comentario_supervisor\n  },\n  metricas: {\n    eficiencia: Math.round((parseInt(workflowData.execucao.atendido) / parseInt(workflowData.triagem.total_protocolos)) * 100) || 0,\n    taxa_vencidos: Math.round((parseInt(workflowData.triagem.protocolos_vencidos) / parseInt(workflowData.triagem.total_protocolos)) * 100) || 0\n  },\n  timestamp: new Date().toISOString()\n};\n\nreturn [{ json: { relatorio: relatorioFinal } }];"
+          },
+          "position": [450, 300]
+        },
+        {
+          "name": "Salvar Relatório",
+          "type": "n8n-nodes-base.postgres",
+          "parameters": {
+            "operation": "insert",
+            "table": "relatorios_diarios",
+            "columns": "data, turno, equipe, relatorio_json, created_at",
+            "additionalFields": {
+              "mode": "defineBelow",
+              "values": {
+                "data": "={{$json.relatorio.cabecalho.data}}",
+                "turno": "={{$json.relatorio.cabecalho.turno}}",
+                "equipe": "={{$json.relatorio.cabecalho.equipe}}",
+                "relatorio_json": "={{JSON.stringify($json.relatorio)}}",
+                "created_at": "={{$now}}"
+              }
+            }
+          },
+          "position": [650, 300]
+        },
+        {
+          "name": "Enviar Relatório por Email",
+          "type": "n8n-nodes-base.emailSend",
+          "parameters": {
+            "fromEmail": "sistema@empresa.com",
+            "toEmail": "gerencia@empresa.com",
+            "subject": "Relatório Diário - {{$json.relatorio.cabecalho.equipe}} - {{$json.relatorio.cabecalho.data}}",
+            "text": "Relatório Diário de Planejamento e Execução\n\nEquipe: {{$json.relatorio.cabecalho.equipe}}\nData: {{$json.relatorio.cabecalho.data}}\nTurno: {{$json.relatorio.cabecalho.turno}}\n\nColaboradores:\n{{$json.relatorio.cabecalho.colaboradores.join(', ')}}\n\nProtocolos:\n- No prazo: {{$json.relatorio.protocolos.no_prazo}}\n- Vencidos: {{$json.relatorio.protocolos.vencidos}}\n- Total: {{$json.relatorio.protocolos.total}}\n\nExecução:\n- Atendido: {{$json.relatorio.execucao.atendido}}\n- Impossibilidade: {{$json.relatorio.execucao.impossibilidade}}\n- Não executado: {{$json.relatorio.execucao.nao_executado}}\n\nMétricas:\n- Eficiência: {{$json.relatorio.metricas.eficiencia}}%\n- Taxa de vencidos: {{$json.relatorio.metricas.taxa_vencidos}}%\n\nComentários:\nTriagem: {{$json.relatorio.comentarios.triagem}}\nExecução: {{$json.relatorio.comentarios.execucao}}\nSupervisor: {{$json.relatorio.comentarios.supervisor}}"
+          },
+          "position": [850, 300]
+        }
+      ],
+      "connections": {
+        "Webhook Relatórios": {
+          "main": [
+            [
+              {
+                "node": "Gerar Relatório Final",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Gerar Relatório Final": {
+          "main": [
+            [
+              {
+                "node": "Salvar Relatório",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Salvar Relatório": {
+          "main": [
+            [
+              {
+                "node": "Enviar Relatório por Email",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    }
+  ],
+  "database_schema": {
+    "tables": [
+      {
+        "name": "diario_planejamento",
+        "columns": [
+          "id SERIAL PRIMARY KEY",
+          "data DATE NOT NULL",
+          "turno VARCHAR(10) NOT NULL",
+          "equipe VARCHAR(50) NOT NULL",
+          "colaborador1 VARCHAR(100) NOT NULL",
+          "colaborador2 VARCHAR(100)",
+          "veiculo VARCHAR(50)",
+          "regiao VARCHAR(100)",
+          "protocolos_prazo INTEGER",
+          "protocolos_vencidos INTEGER",
+          "total_protocolos INTEGER",
+          "comentario_triagem TEXT",
+          "status_triagem VARCHAR(20)",
+          "atendido INTEGER",
+          "impossibilidade INTEGER",
+          "nao_executado INTEGER",
+          "comentario_execucao TEXT",
+          "eficiencia INTEGER",
+          "classificacao VARCHAR(20)",
+          "comentario_supervisor TEXT",
+          "sentimento_supervisao VARCHAR(20)",
+          "pontos_atencao BOOLEAN",
+          "status_final VARCHAR(20)",
+          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+          "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ]
+      },
+      {
+        "name": "relatorios_diarios",
+        "columns": [
+          "id SERIAL PRIMARY KEY",
+          "data DATE NOT NULL",
+          "turno VARCHAR(10) NOT NULL",
+          "equipe VARCHAR(50) NOT NULL",
+          "relatorio_json JSONB NOT NULL",
+          "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ]
+      }
+    ]
+  },
+  "setup_instructions": {
+    "1": "Instalar n8n: npm install n8n -g",
+    "2": "Iniciar n8n: n8n start",
+    "3": "Acessar interface: http://localhost:5678",
+    "4": "Importar workflows do arquivo n8n-workflows.json",
+    "5": "Configurar credenciais do banco de dados PostgreSQL",
+    "6": "Configurar credenciais de email (SMTP)",
+    "7": "Configurar credenciais da OpenAI API (para análise de sentimento)",
+    "8": "Ativar todos os workflows",
+    "9": "Testar webhooks com dados de exemplo"
+  }
+}
+

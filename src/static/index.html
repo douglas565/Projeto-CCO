@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diário de Planejamento</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Diário de Planejamento e Acompanhamento Operacional</h1>
+    </header>
+    <main>
+        <nav class="workflow-nav">
+            <button class="nav-button active" data-step="planejamento">1. Planejamento Diário</button>
+            <button class="nav-button" data-step="triagem">2. Triagem OS</button>
+            <button class="nav-button" data-step="execucao">3. Execução</button>
+            <button class="nav-button" data-step="supervisao">4. Supervisão</button>
+            <button class="nav-button" data-step="relatorios">5. Relatórios</button>
+        </nav>
+
+        <section id="planejamento" class="workflow-step active">
+            <h2>1. Planejamento Diário</h2>
+            <form>
+                <label for="data">Data:</label>
+                <input type="date" id="data" name="data" required>
+
+                <label for="turno">Turno:</label>
+                <select id="turno" name="turno" required>
+                    <option value="">Selecione</option>
+                    <option value="N1">N1</option>
+                    <option value="T2">T2</option>
+                    <option value="M1">M1</option>
+                    <option value="A">A</option>
+                </select>
+
+                <label for="equipe">Equipe:</label>
+                <input type="text" id="equipe" name="equipe" placeholder="Ex: Equipe 18" required>
+
+                <label for="colaborador1">Colaborador 1:</label>
+                <input type="text" id="colaborador1" name="colaborador1" required>
+
+                <label for="colaborador2">Colaborador 2:</label>
+                <input type="text" id="colaborador2" name="colaborador2">
+
+                <label for="veiculo">Veículo:</label>
+                <input type="text" id="veiculo" name="veiculo" placeholder="Ex: Placa ABC-1234">
+
+                <label for="regiao">Região:</label>
+                <input type="text" id="regiao" name="regiao" placeholder="Ex: Centro">
+
+                <button type="submit">Salvar Planejamento</button>
+            </form>
+        </section>
+
+        <section id="triagem" class="workflow-step">
+            <h2>2. Triagem de Ordens de Serviço (OS)</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="protocolos_prazo">Protocolos no Prazo:</label>
+                    <input type="number" id="protocolos_prazo" name="protocolos_prazo" min="0" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label for="protocolos_vencidos">Protocolos Vencidos:</label>
+                    <input type="number" id="protocolos_vencidos" name="protocolos_vencidos" min="0" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label for="total_protocolos">Total de Protocolos:</label>
+                    <input type="number" id="total_protocolos" name="total_protocolos" min="0" readonly>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="comentario_triagem">Comentário sobre Atendimento:</label>
+                <textarea id="comentario_triagem" name="comentario_triagem" rows="3" placeholder="Ex: Atendimento decorativas, Implantação de poste e pontos viários"></textarea>
+            </div>
+            <button class="advance-btn">Avançar para Execução</button>
+        </section>
+
+        <section id="execucao" class="workflow-step">
+            <h2>3. Execução</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="atendido">Atendido:</label>
+                    <input type="number" id="atendido" name="atendido" min="0" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label for="impossibilidade">Impossibilidade:</label>
+                    <input type="number" id="impossibilidade" name="impossibilidade" min="0" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label for="nao_executado">Não Executado:</label>
+                    <input type="number" id="nao_executado" name="nao_executado" min="0" placeholder="0">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="comentario_execucao">Comentários da Execução:</label>
+                <textarea id="comentario_execucao" name="comentario_execucao" rows="3" placeholder="Detalhes sobre a execução das atividades"></textarea>
+            </div>
+            <button class="advance-btn">Avançar para Supervisão</button>
+        </section>
+
+        <section id="supervisao" class="workflow-step">
+            <h2>4. Supervisão</h2>
+            <div class="form-group">
+                <label for="comentario_supervisor">Comentários do Supervisor:</label>
+                <textarea id="comentario_supervisor" name="comentario_supervisor" rows="4" placeholder="Observações e feedback do supervisor"></textarea>
+            </div>
+            <div class="status-indicators">
+                <div class="status-card">
+                    <h3>Status Geral</h3>
+                    <div class="status-value" id="status_geral">Em Andamento</div>
+                </div>
+                <div class="status-card">
+                    <h3>Eficiência</h3>
+                    <div class="status-value" id="eficiencia">--</div>
+                </div>
+                <div class="status-card">
+                    <h3>Problemas</h3>
+                    <div class="status-value" id="problemas">--</div>
+                </div>
+            </div>
+            <button class="advance-btn">Avançar para Relatórios</button>
+        </section>
+
+        <section id="relatorios" class="workflow-step">
+            <h2>5. Relatórios</h2>
+            <div class="report-summary">
+                <h3>Resumo do Dia</h3>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <span class="summary-label">Data:</span>
+                        <span class="summary-value" id="summary_data">--</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Turno:</span>
+                        <span class="summary-value" id="summary_turno">--</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Equipe:</span>
+                        <span class="summary-value" id="summary_equipe">--</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Total Protocolos:</span>
+                        <span class="summary-value" id="summary_total">--</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Atendidos:</span>
+                        <span class="summary-value" id="summary_atendidos">--</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Impossibilidades:</span>
+                        <span class="summary-value" id="summary_impossibilidades">--</span>
+                    </div>
+                </div>
+            </div>
+            <div class="action-buttons">
+                <button class="export-btn">Exportar Relatório</button>
+                <button class="new-entry-btn">Nova Entrada</button>
+                <button class="finalize-btn">Finalizar</button>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Diário de Planejamento. Todos os direitos reservados.</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
+
