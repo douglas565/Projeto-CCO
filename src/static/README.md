@@ -1,9 +1,5 @@
 # Diário de Planejamento e Acompanhamento Operacional
 
-## Descrição
-
-Sistema web para gerenciamento do diário de planejamento operacional, desenvolvido para otimizar a produtividade e o tempo da rotina do CCO (Centro de Controle Operacional). O sistema implementa um fluxo de trabalho estruturado em 5 etapas principais, com integração ao n8n para automação de processos.
-
 ## Funcionalidades
 
 ### 1. Planejamento Diário
@@ -35,31 +31,19 @@ Sistema web para gerenciamento do diário de planejamento operacional, desenvolv
 - Envio automático de relatórios por email
 - Opção de nova entrada
 
-## Tecnologias Utilizadas
-
 ### Frontend
 - **HTML5**: Estrutura semântica e acessível
-- **CSS3**: Design responsivo com paleta azul e verde
+- **CSS3**: Design responsivo com paleta azul e verde?
 - **JavaScript**: Funcionalidades interativas e validações
-- **Responsive Design**: Compatível com desktop e mobile
+- **Responsive Design**: Compatível com desktop e mobile 
 
 ### Automação (n8n)
 - **Webhooks**: Integração entre frontend e workflows
 - **Validação de Dados**: Verificação automática de campos obrigatórios
 - **Análise de IA**: Processamento de sentimento via OpenAI
 - **Notificações**: Alertas por email para situações críticas
-- **Persistência**: Armazenamento em banco PostgreSQL
+- **Persistência**: Armazenamento em banco PostgreSQL ( Verificar Hostinguer 50G NvMe)
 
-## Estrutura do Projeto
-
-```
-diario_planejamento_web/
-├── index.html              # Página principal
-├── style.css               # Estilos e design
-├── script.js               # Funcionalidades JavaScript
-├── n8n-workflows.json      # Workflows de automação
-└── README.md               # Documentação
-```
 
 ## Fluxo de Trabalho
 
@@ -110,39 +94,6 @@ Armazena relatórios consolidados em formato JSON.
 - Notificações em tempo real
 - Formulários com validação automática
 
-## Instalação e Configuração
-
-### 1. Frontend
-```bash
-# Clonar ou baixar os arquivos
-# Abrir index.html em um servidor web
-```
-
-### 2. n8n (Opcional para automação completa)
-```bash
-# Instalar n8n
-npm install n8n -g
-
-# Iniciar n8n
-n8n start
-
-# Acessar http://localhost:5678
-# Importar workflows do arquivo n8n-workflows.json
-```
-
-### 3. Banco de Dados (Para automação completa)
-```sql
--- Criar tabelas conforme schema em n8n-workflows.json
--- Configurar credenciais no n8n
-```
-
-## Uso
-
-1. Acesse a página principal
-2. Preencha os dados do planejamento diário
-3. Avance pelas etapas seguindo o fluxo
-4. Complete todas as informações necessárias
-5. Finalize para gerar o relatório automático
 
 ## Benefícios
 
@@ -158,11 +109,9 @@ n8n start
 - Integração com APIs externas
 - Dashboard analítico
 - Relatórios avançados com gráficos
-- Aplicativo mobile nativo
-- Integração com sistemas ERP
-- Machine Learning para previsões
+- Aplicativo mobile nativo (pode não acontecer)
+- Integração com sistemas Gestão deestoque simplificado
+- Machine Learning  (guido)
 
-## Suporte
 
-Para dúvidas ou sugestões sobre o sistema, entre em contato com a equipe de desenvolvimento.
 

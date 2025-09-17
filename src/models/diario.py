@@ -22,6 +22,11 @@ class DiarioPlanejamento(db.Model):
     total_protocolos = db.Column(db.Integer)
     comentario_triagem = db.Column(db.Text)
     status_triagem = db.Column(db.String(20))
+    protocolos_prazo = db.Column(db.Integer)
+    protocolos_vencidos = db.Column(db.Integer)
+    protocolos_nao_enviados_prazo = db.Column(db.Integer) 
+    protocolos_vencem_no_turno = db.Column(db.Integer) 
+    total_protocolos = db.Column(db.Integer)
     
     # Execução
     atendido = db.Column(db.Integer)
@@ -67,7 +72,12 @@ class DiarioPlanejamento(db.Model):
             'pontos_atencao': self.pontos_atencao,
             'status_final': self.status_final,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'protocolos_prazo': self.protocolos_prazo,
+            'protocolos_vencidos': self.protocolos_vencidos,
+            'protocolos_nao_enviados_prazo': self.protocolos_nao_enviados_prazo,
+            'protocolos_vencem_no_turno': self.protocolos_vencem_no_turno, 
+            'total_protocolos': self.total_protocolos,
         }
 
 class RelatoriosDiarios(db.Model):

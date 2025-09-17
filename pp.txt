@@ -1,0 +1,33 @@
+## Instalação e Configuração
+
+### 1. Frontend
+```bash
+# Clonar ou baixar os arquivos
+# Abrir index.html em um servidor web
+```
+
+### 2. n8n (Opcional para automação completa)
+```bash
+# Instalar n8n
+npm install n8n -g
+
+# Iniciar n8n
+n8n start
+
+# Acessar http://localhost:5678
+# Importar workflows do arquivo n8n-workflows.json
+```
+
+### 3. Banco de Dados (Para automação completa)
+```sql
+-- Criar tabelas conforme schema em n8n-workflows.json
+-- Configurar credenciais no n8n
+```
+
+## Uso
+
+1. Acesse a página principal
+2. Preencha os dados do planejamento diário
+3. Avance pelas etapas seguindo o fluxo
+4. Complete todas as informações necessárias
+5. Finalize para gerar o relatório automático

@@ -2,10 +2,13 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, date
 from src.models.diario import db, DiarioPlanejamento, RelatoriosDiarios
 import json
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 diario_bp = Blueprint('diario', __name__)
 
 @diario_bp.route('/planejamento', methods=['POST'])
+@jwt_required()
+
 def criar_planejamento():
     """Criar novo registro de planejamento"""
     try:
@@ -38,7 +41,9 @@ def criar_planejamento():
             colaborador1=data['colaborador1'],
             colaborador2=data.get('colaborador2'),
             veiculo=data.get('veiculo'),
-            regiao=data.get('regiao')
+            regiao=data.get('regiao'),
+            protocolos_nao_enviados_prazo=data.get('protocolos_nao_enviados_prazo'),
+            protocolos_vencem_no_turno=data.get('protocolos_vencem_no_turno')
         )
         
         db.session.add(novo_planejamento)
@@ -55,6 +60,8 @@ def criar_planejamento():
         return jsonify({'error': str(e)}), 500
 
 @diario_bp.route('/triagem/<int:planejamento_id>', methods=['PUT'])
+@jwt_required()
+
 def atualizar_triagem(planejamento_id):
     """Atualizar dados da triagem"""
     try:
@@ -64,8 +71,9 @@ def atualizar_triagem(planejamento_id):
         # Atualizar campos da triagem
         planejamento.protocolos_prazo = data.get('protocolos_prazo')
         planejamento.protocolos_vencidos = data.get('protocolos_vencidos')
+        planejamento.protocolos_nao_enviados_prazo = data.get('protocolos_nao_enviados_prazo') 
+        planejamento.protocolos_vencem_no_turno = data.get('protocolos_vencem_no_turno') 
         planejamento.total_protocolos = data.get('total_protocolos')
-        planejamento.comentario_triagem = data.get('comentario_triagem')
         
         # Calcular status baseado no percentual de vencidos
         if planejamento.total_protocolos and planejamento.total_protocolos > 0:
@@ -300,6 +308,8 @@ def listar_relatorios():
 @diario_bp.route('/dashboard', methods=['GET'])
 def dashboard():
     """Obter dados para dashboard"""
+    current_user = get_jwt_identity()
+
     try:
         # Estatísticas gerais
         total_planejamentos = DiarioPlanejamento.query.count()
@@ -320,16 +330,22 @@ def dashboard():
         planejamentos_recentes = DiarioPlanejamento.query.order_by(
             DiarioPlanejamento.created_at.desc()
         ).limit(5).all()
+
+        total_protocolos_nao_enviados = db.session.query(db.func.sum(DiarioPlanejamento.protocolos_nao_enviados_prazo)).scalar()
+        total_protocolos_vencem_hoje = db.session.query(db.func.sum(DiarioPlanejamento.protocolos_vencem_no_turno)).filter(DiarioPlanejamento.data == date.today()).scalar()
+
         
         return jsonify({
-            'estatisticas': {
-                'total_planejamentos': total_planejamentos,
-                'planejamentos_finalizados': planejamentos_finalizados,
-                'eficiencia_media': round(eficiencia_media, 2),
-                'status_counts': dict(status_counts)
-            },
-            'planejamentos_recentes': [p.to_dict() for p in planejamentos_recentes]
-        })
+        'estatisticas': {
+            'total_planejamentos': total_planejamentos,
+            'planejamentos_finalizados': planejamentos_finalizados,
+            'eficiencia_media': round(eficiencia_media, 2),
+            'status_counts': dict(status_counts),
+            'total_protocolos_nao_enviados': total_protocolos_nao_enviados or 0,
+            'total_protocolos_vencem_hoje': total_protocolos_vencem_hoje or 0,
+        },
+        'planejamentos_recentes': [p.to_dict() for p in planejamentos_recentes]
+    })
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
