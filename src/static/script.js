@@ -354,7 +354,7 @@ function exportReport() {
 }
 
 function resetWorkflow() {
-    
+    // Reset all form data
     workflowData = {
         planejamento: {},
         triagem: {},
@@ -415,7 +415,7 @@ function showNotification(message, type = 'info') {
     // Add to page
     document.body.appendChild(notification);
     
-    // Remove depois 3 de segundos
+    // Remove after 3 seconds
     setTimeout(() => {
         notification.style.animation = 'slideOut 0.3s ease-in';
         setTimeout(() => {
@@ -426,7 +426,7 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
-// Add CSS para notificação
+// Add CSS for notifications
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideIn {
