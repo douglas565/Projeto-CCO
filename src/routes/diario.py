@@ -4,6 +4,7 @@ from src.models.diario import db, DiarioPlanejamento, RelatoriosDiarios
 import json
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
+
 diario_bp = Blueprint('diario', __name__)
 
 @diario_bp.route('/planejamento', methods=['POST'])
@@ -61,6 +62,34 @@ def criar_planejamento():
 
 @diario_bp.route('/triagem/<int:planejamento_id>', methods=['PUT'])
 @jwt_required()
+
+def atualizar_acompanhamento(planejamento_id):
+    """Atualizar dados de acompanhamento da equipe"""
+    try:
+        planejamento = DiarioPlanejamento.query.get_or_404(planejamento_id)
+        data = request.get_json()
+
+        def to_time(time_str):
+            return datetime.strptime(time_str, '%H:%M:%S').time() if time_str else None
+
+        # Atualizar campos de acompanhamento
+        planejamento.horario_saida_base = to_time(data.get('horario_saida_base'))
+        planejamento.horario_primeiro_atendimento = to_time(data.get('horario_primeiro_atendimento'))
+        planejamento.horario_inicio_intervalo = to_time(data.get('horario_inicio_intervalo'))
+        planejamento.horario_fim_intervalo = to_time(data.get('horario_fim_intervalo'))
+        planejamento.horario_ultimo_atendimento = to_time(data.get('horario_ultimo_atendimento'))
+        planejamento.horario_chegada_base = to_time(data.get('horario_chegada_base'))
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Acompanhamento atualizado com sucesso',
+            'data': planejamento.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 def atualizar_triagem(planejamento_id):
     """Atualizar dados da triagem"""
