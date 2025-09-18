@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ENGIE - Login - Diário de Planejamento Operacional</title>
+    <link rel="stylesheet" href="style_engie.css">
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <style>
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--engie-dark-blue) 0%, var(--engie-cyan) 100%);
+            padding: 20px;
+        }
+        
+        .login-card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 400px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, var(--engie-gradient-start) 0%, var(--engie-gradient-end) 100%);
+        }
+        
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .login-logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        .login-logo .logo-sunrise {
+            width: 50px;
+            height: 50px;
+            background: radial-gradient(circle at 50% 100%, var(--engie-cyan) 0%, var(--engie-gradient-end) 50%, transparent 50%);
+            border-radius: 50% 50% 0 0;
+            margin-right: 15px;
+        }
+        
+        .login-logo .logo-text {
+            font-family: 'Lato', sans-serif;
+            font-weight: 900;
+            font-size: 2.5rem;
+            letter-spacing: 2px;
+            color: var(--engie-dark-blue);
+            text-transform: uppercase;
+        }
+        
+        .login-title {
+            color: var(--engie-dark-blue);
+            font-family: 'Lato', sans-serif;
+            font-weight: 700;
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 0;
+        }
+        
+        .login-subtitle {
+            color: #6c757d;
+            font-family: 'Lato', sans-serif;
+            font-weight: 400;
+            font-size: 1rem;
+            margin: 10px 0 0 0;
+        }
+        
+        .login-form {
+            background: none;
+            padding: 0;
+            border: none;
+            box-shadow: none;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-family: 'Lato', sans-serif;
+            font-weight: 700;
+            color: var(--engie-dark-blue);
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 15px 18px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-family: 'Lato', sans-serif;
+            font-size: 1rem;
+            font-weight: 400;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            color: #333;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            margin: 0;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--engie-cyan);
+            box-shadow: 0 0 0 4px rgba(0, 170, 255, 0.15), 0 4px 20px rgba(0, 170, 255, 0.1);
+            transform: translateY(-2px);
+            background: white;
+        }
+        
+        .login-button {
+            width: 100%;
+            background: linear-gradient(135deg, var(--engie-cyan) 0%, var(--engie-gradient-end) 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-family: 'Lato', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0, 170, 255, 0.3);
+            margin-top: 10px;
+        }
+        
+        .login-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 35px rgba(0, 170, 255, 0.4);
+        }
+        
+        .login-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .error-message {
+            background: linear-gradient(135deg, #fff5f5 0%, #ffffff 100%);
+            border: 2px solid var(--engie-pink);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: var(--engie-pink);
+            font-family: 'Lato', sans-serif;
+            font-weight: 500;
+            text-align: center;
+            display: none;
+        }
+        
+        .success-message {
+            background: linear-gradient(135deg, #f0fff4 0%, #ffffff 100%);
+            border: 2px solid var(--engie-teal);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: var(--engie-teal);
+            font-family: 'Lato', sans-serif;
+            font-weight: 500;
+            text-align: center;
+            display: none;
+        }
+        
+        .demo-credentials {
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+            text-align: center;
+        }
+        
+        .demo-credentials h4 {
+            color: var(--engie-dark-blue);
+            font-family: 'Lato', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0 0 15px 0;
+        }
+        
+        .demo-credentials p {
+            margin: 5px 0;
+            font-family: 'Lato', sans-serif;
+            font-weight: 400;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        
+        .demo-credentials strong {
+            color: var(--engie-cyan);
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">
+                    <div class="logo-sunrise"></div>
+                    <span class="logo-text">ENGIE</span>
+                </div>
+                <h1 class="login-title">Acesso ao Sistema</h1>
+                <p class="login-subtitle">Diário de Planejamento Operacional - CCO</p>
+            </div>
+            
+            <div id="errorMessage" class="error-message"></div>
+            <div id="successMessage" class="success-message"></div>
+            
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="username">Usuário</label>
+                    <input type="text" id="username" name="username" required placeholder="Digite seu usuário">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Senha</label>
+                    <input type="password" id="password" name="password" required placeholder="Digite sua senha">
+                </div>
+                
+                <button type="submit" class="login-button" id="loginButton">
+                    Entrar
+                </button>
+            </form>
+            
+            <div class="demo-credentials">
+                <h4>Credenciais de Teste</h4>
+                <p><strong>Admin:</strong> admin / admin123</p>
+                <p><strong>Supervisor:</strong> supervisor1 / super123</p>
+                <p><strong>Colaborador:</strong> colaborador1 / colab123</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const loginButton = document.getElementById('loginButton');
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+            
+            // Limpar mensagens anteriores
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+            
+            // Desabilitar botão durante o login
+            loginButton.disabled = true;
+            loginButton.textContent = 'Entrando...';
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        password: password
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Login bem-sucedido
+                    successMessage.textContent = 'Login realizado com sucesso! Redirecionando...';
+                    successMessage.style.display = 'block';
+                    
+                    // Armazenar token
+                    localStorage.setItem('access_token', data.access_token);
+                    
+                    // Redirecionar após 2 segundos
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 2000);
+                } else {
+                    // Erro no login
+                    errorMessage.textContent = data.erro || 'Erro no login. Verifique suas credenciais.';
+                    errorMessage.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                errorMessage.textContent = 'Erro de conexão. Tente novamente.';
+                errorMessage.style.display = 'block';
+            } finally {
+                // Reabilitar botão
+                loginButton.disabled = false;
+                loginButton.textContent = 'Entrar';
+            }
+        });
+        
+        // Verificar se já está logado
+        if (localStorage.getItem('access_token')) {
+            window.location.href = '/';
+        }
+    </script>
+</body>
+</html>
+

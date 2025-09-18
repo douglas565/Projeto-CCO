@@ -8,6 +8,7 @@ from flask_cors import CORS
 from src.models.diario import db
 from src.routes.user import user_bp
 from src.routes.diario import diario_bp
+from src.routes.auth import auth_bp
 from flask_jwt_extended import JWTManager
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
@@ -20,6 +21,7 @@ CORS(app)
 
 app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(diario_bp, url_prefix='/api')
+app.register_blueprint(auth_bp, url_prefix='/api/auth')
 
 # Configuração do banco de dados
 app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'database', 'app.db')}"
