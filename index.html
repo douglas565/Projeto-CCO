@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BI OPE — Iluminação Pública Curitiba</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>Painel OPE — Overall Operational Effectiveness</h1>
+  <p>Manutenção de Iluminação Pública · Curitiba (CWB) · Disponibilidade × Performance × Qualidade</p>
+</header>
+
+<div class="wrap">
+
+  <!-- ======== FONTES DE DADOS ======== -->
+  <div class="box upload-area">
+    <div class="f"><label>Atendimentos <span class="opt">(automático — API Exati)</span></label>
+      <div class="auto" id="stFonteAtend">aguardando busca na API</div></div>
+    <div class="f"><label>Horários / metas <span class="opt">(automático — painel)</span></label>
+      <div class="auto" id="stFonteHor">valores pré-setados na aba Fontes &amp; Horários</div></div>
+    <div class="f"><label>1. Relatório de Paradas <span class="opt">(opcional — sem ele a Disponibilidade fica 100%)</span></label>
+      <input type="file" id="fileParadas" accept=".xlsx,.xls,.csv"></div>
+    <div class="f"><label>2. Planejamento <span class="opt">(opcional — a API já fornece regional/veículo)</span></label>
+      <input type="file" id="filePlan" accept=".xlsx,.xls,.csv"></div>
+    <div class="f"><label>&nbsp;</label><button id="btnCarregar">Carregar dados</button></div>
+    <div class="f"><label>&nbsp;</label><button class="ghost" id="btnIrFontes">Configurar API / Horários</button></div>
+  </div>
+
+  <!-- ======== PARÂMETROS DE CÁLCULO ======== -->
+  <div class="box cfg-area">
+    <div class="f"><label>Base do turno real</label>
+      <select id="cfgMetodo">
+        <option value="meta">META DISPONIBILIDADE − paradas (oficial)</option>
+        <option value="janela">Janela apurada: 1ª Início → última Conclusão − paradas</option>
+        <option value="soma">Soma das OS (Conclusão − Início)</option>
+      </select></div>
+    <div class="f"><label>Formato de data em texto</label>
+      <select id="cfgFmt"><option value="DD/MM">DD/MM/AAAA</option><option value="MM/DD">MM/DD/AAAA</option></select></div>
+    <label class="chk"><input type="checkbox" id="cfgMetaDia" checked> Meta de 15 por equipe/dia (rateada entre turnos)</label>
+    <label class="chk"><input type="checkbox" id="cfgCap"> Limitar componentes a 100%</label>
+    <label class="chk"><input type="checkbox" id="cfgStatus"> Status ≠ "Atendido" conta como impossibilidade</label>
+    <label class="chk"><input type="checkbox" id="cfgOrfa"> Criar turno a partir de parada sem execução</label>
+  </div>
+
+  <!-- ======== FILTROS ======== -->
+  <div class="box">
+    <div class="f"><label>Período — de</label><input type="date" id="fDe"></div>
+    <div class="f"><label>até</label><input type="date" id="fAte"></div>
+    <div class="f"><label>Equipe</label><select id="fEquipe"></select></div>
+    <div class="f"><label>Turno</label><select id="fTurno"></select></div>
+    <div class="f"><label>Regional</label><select id="fRegional"></select></div>
+    <div class="f"><label>&nbsp;</label><button class="ghost" id="btnReset">Limpar filtros</button></div>
+    <div class="f" style="margin-left:auto"><label>&nbsp;</label><button id="btnCSV">Exportar CSV</button></div>
+  </div>
+
+  <div id="banner" class="banner info">
+    <div class="ic">i</div>
+    <div>Os <b>Horários</b> já vêm pré-setados e os atendimentos vêm da <b>API Exati</b> — abra a aba <b>Fontes &amp; Horários</b>, informe a senha e clique em <b>Buscar atendimentos</b>. Paradas e Planejamento continuam por arquivo, se necessário.</div>
+  </div>
+
+  <!-- ======== BOTÕES DOS INDICADORES ======== -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="geral">Visão geral OPE</button>
+    <button class="tab-btn t-disp" data-tab="disp">Disponibilidade</button>
+    <button class="tab-btn t-perf" data-tab="perf">Performance</button>
+    <button class="tab-btn t-qual" data-tab="qual">Qualidade</button>
+    <button class="tab-btn" data-tab="fontes">Fontes &amp; Horários</button>
+    <button class="tab-btn" data-tab="dados">Dados &amp; diagnóstico</button>
+  </div>
+
+  <!-- ============================= GERAL ============================= -->
+  <section class="panel active" id="panel-geral">
+    <div class="grid k4">
+
+      <div class="card">
+        <div class="kpi-head"><h3>OPE</h3><span class="pill" id="gOpePill">—</span></div>
+        <svg id="gOpe" width="100%" height="118"></svg>
+        <div class="sub" id="gOpeSub" style="text-align:center">—</div>
+        <div class="formula">OPE = <b>Disponibilidade × Performance × Qualidade</b></div>
+      </div>
+
+      <div class="card acc-disp">
+        <h3>Disponibilidade</h3>
+        <div class="big" id="gDisp">—</div><div class="sub" id="gDispSub">—</div>
+        <div class="bar"><i id="gDispBar" style="background:var(--blue)"></i></div>
+        <div class="formula">(<b>Turno real</b> − paradas) / <b>Turno real</b> · turno real = META DISPONIBILIDADE</div>
+      </div>
+
+      <div class="card acc-perf">
+        <h3>Performance</h3>
+        <div class="big" id="gPerf">—</div><div class="sub" id="gPerfSub">—</div>
+        <div class="bar"><i id="gPerfBar" style="background:var(--teal)"></i></div>
+        <div class="formula">Atendimentos realizados / <b>META PRODUÇÃO</b> (15 por equipe/dia)</div>
+      </div>
+
+      <div class="card acc-qual">
+        <h3>Qualidade</h3>
+        <div class="big" id="gQual">—</div><div class="sub" id="gQualSub">—</div>
+        <div class="bar"><i id="gQualBar" style="background:var(--purple)"></i></div>
+        <div class="formula">(Realizados − impossibilidades) / Realizados</div>
+      </div>
+
+    </div>
+
+    <h2 class="sec">Tempo <small>— turno e execução são medidas distintas</small></h2>
+    <div class="grid c4">
+      <div class="card"><h3>Tempo disponível efetivo</h3><div class="big sm" id="kTurnoReal">—</div><div class="sub" id="kTurnoRealSub">—</div></div>
+      <div class="card"><h3>Tempo de execução (soma das OS)</h3><div class="big sm" id="kExec">—</div><div class="sub" id="kExecSub">—</div></div>
+      <div class="card"><h3>Ocupação</h3><div class="big sm" id="kOcup">—</div><div class="sub" id="kOcupSub">—</div>
+        <div class="bar"><i id="kOcupBar" style="background:var(--navy2)"></i></div></div>
+      <div class="card"><h3>Paradas não programadas</h3><div class="big sm" id="kParada">—</div><div class="sub" id="kParadaSub">—</div></div>
+    </div>
+
+    <h2 class="sec">Produção e produtividade</h2>
+    <div class="grid c4">
+      <div class="card"><h3>Atendimentos realizados</h3><div class="big sm" id="kReal">—</div><div class="sub" id="kRealSub">—</div></div>
+      <div class="card"><h3>Produtividade (turno / atendimento)</h3><div class="big sm" id="kProdut">—</div><div class="sub" id="kProdutSub">—</div></div>
+      <div class="card"><h3>Tempo médio por OS</h3><div class="big sm" id="kExecOS">—</div><div class="sub" id="kExecOSSub">—</div></div>
+      <div class="card"><h3>Turnos analisados</h3><div class="big sm" id="kGrupos">—</div><div class="sub" id="kGruposSub">—</div></div>
+    </div>
+
+    <h2 class="sec">Análises</h2>
+    <div class="grid c2">
+      <div class="card"><h3>OPE e componentes por data</h3><svg id="chGeralData" width="100%"></svg><div class="legend" id="legGeralData"></div></div>
+      <div class="card"><h3>OPE por equipe</h3><div id="chGeralEquipe"></div></div>
+    </div>
+
+    <h2 class="sec">Detalhamento por equipe / turno</h2>
+    <div class="card p0"><div class="tblbox"><table id="tOPE"></table></div></div>
+  </section>
+
+  <!-- ========================= DISPONIBILIDADE ========================= -->
+  <section class="panel" id="panel-disp">
+    <div class="grid k4">
+      <div class="card acc-disp big-kpi"><h3>Disponibilidade</h3>
+        <div class="big" id="dKpi">—</div><div class="sub" id="dKpiSub">—</div>
+        <div class="bar"><i id="dKpiBar" style="background:var(--blue)"></i></div>
+        <div class="formula">(Turno real − paradas) / Turno real</div></div>
+      <div class="card"><h3>Turno real (META DISPONIBILIDADE)</h3><div class="big sm" id="dProg">—</div><div class="sub" id="dProgSub">—</div></div>
+      <div class="card"><h3>Tempo disponível efetivo</h3><div class="big sm" id="dReal">—</div><div class="sub" id="dRealSub">—</div></div>
+      <div class="card"><h3>Perdas por parada</h3><div class="big sm" id="dParada">—</div><div class="sub" id="dParadaSub">—</div></div>
+    </div>
+
+    <h2 class="sec">Por que não 100% <small>— relatório de paradas</small></h2>
+    <div class="grid c2">
+      <div class="card"><h3>Composição do turno <small>— de onde vem o turno real</small></h3>
+        <table id="tComposicao"></table>
+        <div class="sub" id="dCompNota" style="margin-top:10px"></div></div>
+      <div class="card"><h3>Tempo disponível × parada por data (min)</h3><svg id="chDispData" width="100%"></svg><div class="legend" id="legDispData"></div></div>
+      <div class="card"><h3>Disponibilidade por equipe</h3><div id="chDispEquipe"></div></div>
+      <div class="card"><h3>Minutos de parada por motivo</h3><div id="chDispMotivo"></div><div class="sub" id="dNota" style="margin-top:10px"></div></div>
+      <div class="card"><h3>Minutos de parada por equipe</h3><div id="chDispParadaEq"></div></div>
+    </div>
+
+    <h2 class="sec">Paradas registradas</h2>
+    <div class="card p0"><div class="tblbox"><table id="tParadas"></table></div></div>
+  </section>
+
+  <!-- =========================== PERFORMANCE =========================== -->
+  <section class="panel" id="panel-perf">
+    <div class="grid k4">
+      <div class="card acc-perf big-kpi"><h3>Performance</h3>
+        <div class="big" id="pKpi">—</div><div class="sub" id="pKpiSub">—</div>
+        <div class="bar"><i id="pKpiBar" style="background:var(--teal)"></i></div>
+        <div class="formula">Realizados / META PRODUÇÃO (15 por equipe/dia)</div></div>
+      <div class="card"><h3>Realizados</h3><div class="big sm" id="pReal">—</div><div class="sub" id="pRealSub">—</div></div>
+      <div class="card"><h3>Meta de produção</h3><div class="big sm" id="pMeta">—</div><div class="sub" id="pMetaSub">—</div></div>
+      <div class="card"><h3>Desvio</h3><div class="big sm" id="pGap">—</div><div class="sub" id="pGapSub">—</div></div>
+    </div>
+
+    <div class="grid c4" style="margin-top:16px">
+      <div class="card"><h3>Equipes necessárias</h3><div class="big sm" id="pEqNec">—</div><div class="sub" id="pEqNecSub">—</div></div>
+      <div class="card"><h3>Equipes disponíveis</h3><div class="big sm" id="pEqDisp">—</div><div class="sub" id="pEqDispSub">—</div></div>
+      <div class="card"><h3>Tempo médio de execução por OS</h3><div class="big sm" id="pExecOS">—</div><div class="sub" id="pExecOSSub">—</div></div>
+      <div class="card"><h3>Capacidade</h3><div class="big sm" id="pCap">—</div><div class="sub" id="pCapSub">—</div></div>
+    </div>
+
+    <div class="grid c4" style="margin-top:16px">
+      <div class="card"><h3>Média por equipe/dia</h3><div class="big sm" id="pMedia">—</div><div class="sub" id="pMediaSub">—</div></div>
+      <div class="card"><h3>Equipe-dia</h3><div class="big sm" id="pEqDia">—</div><div class="sub" id="pEqDiaSub">—</div></div>
+      <div class="card"><h3>Equipe-dia na meta</h3><div class="big sm" id="pNaMeta">—</div><div class="sub" id="pNaMetaSub">—</div></div>
+      <div class="card"><h3>Melhor / pior equipe-dia</h3><div class="big sm" id="pExtremos">—</div><div class="sub" id="pExtremosSub">—</div></div>
+    </div>
+
+    <div class="grid c2" style="margin-top:16px">
+      <div class="card"><h3>Realizado × meta por data</h3><svg id="chPerfData" width="100%"></svg><div class="legend" id="legPerfData"></div></div>
+      <div class="card"><h3>Equipes necessárias × disponíveis por data</h3><svg id="chPerfEq" width="100%"></svg><div class="legend" id="legPerfEq"></div></div>
+      <div class="card"><h3>Performance por equipe</h3><div id="chPerfEquipe"></div></div>
+      <div class="card"><h3>Realizados por equipe/dia <small>— meta 15</small></h3><div id="chPerfEqDia"></div></div>
+      <div class="card"><h3>Motivos dos atendimentos</h3>
+        <div class="donutwrap"><svg id="chPerfMotivo" viewBox="0 0 200 200" width="190" height="190"></svg>
+        <div id="legPerfMotivo" class="donutleg"></div></div></div>
+      <div class="card"><h3>Realizados por equipe</h3><div id="chPerfQtdEq"></div></div>
+    </div>
+
+    <h2 class="sec">Por que não 100%? <small>— decomposição do tempo disponível</small></h2>
+    <div class="grid c2">
+      <div class="card"><h3>Para onde foi o tempo disponível</h3>
+        <table id="tPerfPorque"></table>
+        <div class="sub" id="pPorqueNota" style="margin-top:10px"></div></div>
+      <div class="card"><h3>Perda de performance por causa <small>— pontos percentuais</small></h3>
+        <div id="chPerfPerda"></div>
+        <h3 style="margin-top:16px">Maior perda por equipe</h3>
+        <div id="chPerfPerdaEq"></div></div>
+    </div>
+
+    <h2 class="sec">Onde o tempo foi por equipe/dia <small>— ordenado pela maior perda</small></h2>
+    <div class="card p0"><div class="tblbox"><table id="tPorqueEqDia"></table></div></div>
+
+    <h2 class="sec">Produção por turno</h2>
+    <div class="card p0"><div class="tblbox"><table id="tPerf"></table></div></div>
+
+    <h2 class="sec">Produção por equipe/dia <small>— unidade da meta de 15</small></h2>
+    <div class="card p0"><div class="tblbox"><table id="tEqDia"></table></div></div>
+  </section>
+
+  <!-- ============================ QUALIDADE ============================ -->
+  <section class="panel" id="panel-qual">
+    <div class="grid k4">
+      <div class="card acc-qual big-kpi"><h3>Qualidade</h3>
+        <div class="big" id="qKpi">—</div><div class="sub" id="qKpiSub">—</div>
+        <div class="bar"><i id="qKpiBar" style="background:var(--purple)"></i></div>
+        <div class="formula">(Realizados − impossibilidades) / Realizados</div></div>
+      <div class="card"><h3>Realizados</h3><div class="big sm" id="qReal">—</div><div class="sub" id="qRealSub">—</div></div>
+      <div class="card"><h3>Impossibilidades</h3><div class="big sm" id="qImposs">—</div><div class="sub" id="qImpossSub">—</div></div>
+      <div class="card"><h3>Motivos classificados</h3><div class="big sm" id="qMotivosN">—</div><div class="sub" id="qMotivosNSub">—</div></div>
+    </div>
+    <h2 class="sec">Impossibilidades no período <small>— acompanha o filtro geral de data</small></h2>
+    <div class="grid c2">
+      <div class="card"><h3>Impossibilidades por data</h3><svg id="chQualData" width="100%"></svg><div class="legend" id="legQualData"></div></div>
+      <div class="card"><h3>Impossibilidades por motivo</h3><div id="chQualMotivo"></div></div>
+      <div class="card"><h3>Impossibilidades por equipe</h3><div id="chQualEquipe"></div></div>
+      <div class="card"><h3>Classificação de motivos <small>— marque os que são impossibilidade</small></h3>
+        <div id="motivosBox" class="motivos"></div></div>
+    </div>
+    <h2 class="sec">Atendimentos classificados como impossibilidade</h2>
+    <div class="card p0"><div class="tblbox"><table id="tImposs"></table></div></div>
+  </section>
+
+  <!-- ====================== FONTES & HORÁRIOS ====================== -->
+  <section class="panel" id="panel-fontes">
+    <h2 class="sec">API Exati <small>— coleta automática dos atendimentos</small></h2>
+    <div id="boxApiExati"></div>
+    <h2 class="sec">Horários <small>— parâmetros de turno pré-setados e editáveis</small></h2>
+    <div id="boxHorariosCfg"></div>
+  </section>
+
+  <!-- ============================== DADOS ============================== -->
+  <section class="panel" id="panel-dados">
+    <h2 class="sec">Fontes carregadas</h2>
+    <div class="card"><div id="resumoFontes" class="notes">—</div></div>
+    <h2 class="sec">Parâmetros de turno em uso</h2>
+    <div class="card p0"><div class="tblbox"><table id="tTurnos"></table></div></div>
+    <h2 class="sec">Diagnóstico de leitura</h2>
+    <div class="card"><div id="diagBox" class="notes">—</div></div>
+    <h2 class="sec">Atendimentos executados</h2>
+    <div class="card p0"><div class="tblbox"><table id="tAtend"></table></div></div>
+    <h2 class="sec">Notas metodológicas</h2>
+    <div class="card notes"><ul>
+      <li><b>Disponibilidade</b> = (Turno real − paradas) ÷ Turno real. O <b>turno real</b> é a coluna <b>META DISPONIBILIDADE</b> da planilha Horários: o turno já descontados mobilização, desmobilização, locomoção e intervalo/almoço. O único fator que reduz o indicador abaixo de 100% é o <b>relatório de paradas</b>.</li>
+      <li>Validação da base: META DISPONIBILIDADE ÷ META PRODUÇÃO = META PRODUTIVIDADE (350 ÷ 15 = 0:23; 290 ÷ 15 = 0:19).</li>
+      <li><b>Início</b> e <b>Conclusão</b> da Exportação não entram na Disponibilidade: servem para alocar a OS em data/equipe/turno e para tempo de execução, ocupação e produtividade.</li>
+      <li><b>Performance</b> = realizados ÷ meta. A meta é de <b>15 chamados finalizados por equipe/dia</b>; quando a equipe atua em mais de um turno no mesmo dia, os 15 são rateados entre os turnos para que a soma do dia feche em 15. Desmarcando a opção nos parâmetros, a meta passa a valer 15 por turno.</li>
+      <li><b>Equipes necessárias</b> = chamados realizados no dia ÷ 15, arredondado para cima. <b>Equipes disponíveis</b> = equipes distintas com produção apontada no dia. A diferença aparece no card <b>Capacidade</b>: positiva indica folga, negativa indica déficit.</li>
+      <li>Os componentes <b>não são limitados a 100%</b>: superação da meta aparece com o valor real (ex.: 20 chamados ÷ 15 = 133,3%). O limite pode ser reativado nos parâmetros.</li>
+      <li><b>Qualidade</b>: impossibilidades identificadas pela coluna <b>Motivo</b>, conforme classificação marcada nesta aba. O critério por status ≠ "Atendido" é opcional e vem desativado — a aba de diagnóstico lista os valores reais da coluna Atendimento para apoiar a decisão.</li>
+      <li><b>Por que não 100%?</b> (aba Performance) decompõe o tempo disponível em quatro parcelas que somam exatamente o total: tempo produtivo na meta, excesso de execução nos atendimentos válidos, execução gasta em impossibilidades e tempo sem OS apontada. As três últimas são a perda, em pontos percentuais, até os 100%.</li>
+      <li>A planilha FR-CWB-GL-0001-00 <b>não é importada</b>: serviu apenas de referência para a estrutura das fórmulas.</li>
+      <li>Turnos vêm de HORA INÍCIO/HORA FIM. Em faixas de sobreposição vence o turno de início mais cedo; a linha é marcada como ambígua no detalhamento. OS antes do fim do T3 são atribuídas ao turno iniciado no dia anterior.</li>
+    </ul></div>
+  </section>
+</div>
+
+<script src="fonte.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
