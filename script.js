@@ -73,6 +73,10 @@
   const brDT = d => d&&!isNaN(d) ? `${brDate(iso(d))} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}` : "n/d";
   const hhmm = m => { if(m==null||isNaN(m)) return "—"; const s=m<0?"-":""; m=Math.abs(Math.round(m));
                       return `${s}${Math.floor(m/60)}:${String(m%60).padStart(2,"0")}`; };
+  const hhmmss = m => { if(m==null||isNaN(m)) return "—"; const s=m<0?"-":"";
+                        const absM=Math.abs(m); const h=Math.floor(absM/60);
+                        const mn=Math.floor(absM%60); const sc=Math.round((absM - Math.floor(absM))*60);
+                        return `${s}${h}:${String(mn).padStart(2,"0")}:${String(sc).padStart(2,"0")}`; };
   const pct = v => v==null||isNaN(v) ? "n/d" : (v*100).toFixed(1)+"%";
   const cor = v => v==null ? "var(--gray)" : v>=.85 ? "var(--ok)" : v>=.7 ? "var(--warn)" : "var(--bad)";
   const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -802,12 +806,24 @@
   
   /* ========================= FILTROS ========================= */
   let GRUPOS=[], ULTIMO=[];
-  function preencher(id,vals,label){
-    const s=$(id); if(!s) return;
-    const atual=s.value;
-    s.innerHTML=`<option value="">${label}</option>`+vals.map(v=>`<option>${esc(v)}</option>`).join("");
-    if(vals.includes(atual)) s.value=atual;
-    s.onchange=render;
+  function preencher(id, vals, label) {
+    const s = $(id); if (!s) return;
+    const isMultiple = s.multiple;
+    let selecionados = [];
+    if (isMultiple) {
+      selecionados = Array.from(s.selectedOptions).map(o => o.value);
+    } else {
+      selecionados = [s.value];
+    }
+    
+    let html = !isMultiple ? `<option value="">${label}</option>` : ``;
+    html += vals.map(v => {
+      const selected = selecionados.includes(v) ? " selected" : "";
+      return `<option${selected}>${esc(v)}</option>`;
+    }).join("");
+    
+    s.innerHTML = html;
+    s.onchange = render;
   }
   function inicializarFiltros(){
     const datas=uniq([...EST.grupos.map(g=>g.data),
@@ -822,16 +838,21 @@
         el.min=datas[0]; el.max=datas.at(-1); el.value=i?datas.at(-1):datas[0]; el.onchange=render; });
     }
   }
-  const val = id => { const e=$(id); return e?e.value:""; };
+  const val = id => {
+    const e = $(id);
+    if (!e) return "";
+    if (e.multiple) return Array.from(e.selectedOptions).map(o => o.value).filter(v => v !== "");
+    return e.value;
+  };
   const dentro=(d,de,ate)=>(!de||d>=de)&&(!ate||d<=ate);
   function filtrar(){
     const de=val("fDe"),ate=val("fAte"),e=val("fEquipe"),t=val("fTurno"),r=val("fRegional");
-    return GRUPOS.filter(g=>dentro(g.data,de,ate)&&(!e||g.eq===e)&&(!t||g.turno===t)&&(!r||g.reg.includes(r)));
+    return GRUPOS.filter(g=>dentro(g.data,de,ate)&&(!e.length||e.includes(g.eq))&&(!t||g.turno===t)&&(!r||g.reg.includes(r)));
   }
   function filtrarOrfas(){
     const de=val("fDe"),ate=val("fAte"),e=val("fEquipe"),t=val("fTurno"),r=val("fRegional");
     if(r) return [];
-    return EST.orfas.filter(p=>dentro(p.dataRef,de,ate)&&(!e||p.eq===e)&&(!t||p.turno===t));
+    return EST.orfas.filter(p=>dentro(p.dataRef,de,ate)&&(!e.length||e.includes(p.eq))&&(!t||p.turno===t));
   }
   
   /* ========================= GRÁFICOS ========================= */
@@ -1025,7 +1046,7 @@
       txt.push(`Performance de <b>${pct(a.perfC)}</b> — faltam <b>${pp(1-(a.perf??0)).replace("−","")}</b> para 100%. Maior causa: <b>${maior.k.toLowerCase()}</b> (${pp(maior.v)}).`);
     }
     if(c.fora<0) txt.push("Atenção: a soma das OS excede o tempo disponível — há sobreposição de atendimentos ou apontamento fora da janela do turno.");
-    txt.push(`Produtividade real de <b>${hhmm(a.produtReal)}</b> por atendimento válido contra a meta de <b>${hhmm(metaT)}</b>.`);
+    txt.push(`Produtividade real de <b>${hhmmss(a.produtReal)}</b> por atendimento válido contra a meta de <b>${hhmmss(metaT)}</b>.`);
     txt.push(`Base do tempo disponível: ${textoMetodo()} — ${hhmm(a.tempoTotal)} de tempo total menos ${hhmm(a.paradaMin)} de parada.`);
     if(CFG.metodo==="meta") txt.push("Como a base é a META DISPONIBILIDADE, o tempo sem OS apontada reúne deslocamento entre pontos, espera e qualquer período não registrado na Exportação.");
     setH("pPorqueNota", txt.join(" "));
@@ -1098,7 +1119,7 @@
     setH("gOpeSub",`${pct(a.dispC)} × ${pct(a.perfC)} × ${pct(a.qualC)}`);
     const kpi=(id,v,sub,bar)=>{ setT(id,pct(v)); setT(id+"Sub",sub); setBar(bar,v); };
     kpi("gDisp",a.dispC,`${hhmm(a.turnoRealMin)} disponíveis de ${hhmm(a.tempoTotal)} de tempo total`,"gDispBar");
-    kpi("gPerf",a.perfC,`Meta ${hhmm(metaT)}/atend. ÷ produtividade real ${hhmm(a.produtReal)}`,"gPerfBar");
+    kpi("gPerf",a.perfC,`Meta ${hhmmss(metaT)}/atend. ÷ produtividade real ${hhmmss(a.produtReal)}`,"gPerfBar");
     kpi("gQual",a.qualC,a.real?`${a.imposs} impossibilidade(s) em ${a.real}`:"Sem atendimentos","gQualBar");
   
     setT("kTurnoReal",hhmm(a.turnoRealMin));
@@ -1114,8 +1135,8 @@
       (orfas.length?` · ${orfas.length} órfã(s), ${hhmm(soma(orfas,x=>x.min))} fora do cálculo`:""));
     setT("kReal",a.real);
     setT("kRealSub",`${a.validos} válidos · ${eqs.length} equipe(s) · ${datas.length} data(s)`);
-    setT("kProdut",hhmm(a.produtReal));
-    setT("kProdutSub",`Produtividade real por atendimento válido · meta ${hhmm(metaT)}`);
+    setT("kProdut",hhmmss(a.produtReal));
+    setT("kProdutSub",`Produtividade real por atendimento válido · meta ${hhmmss(metaT)}`);
     setT("kExecOS",hhmm(a.execOS));
     setT("kExecOSSub","Duração média no ponto de serviço");
     setT("kGrupos",gs.length);
@@ -1141,7 +1162,7 @@
       {t:"Ocup.",num:1,f:r=>pct(r.ocup)},{t:"Disp.",num:1,f:r=>badge(r.dispC)},
       {t:"Realiz.",num:1,f:r=>r.real},{t:"Imposs.",num:1,f:r=>r.imposs},
       {t:"Válidos",num:1,f:r=>r.validos},
-      {t:"Produt. real",num:1,f:r=>hhmm(r.produtReal)},
+      {t:"Produt. real",num:1,f:r=>hhmmss(r.produtReal)},
       {t:"Meta tempo",num:1,f:r=>hhmm(r.metaTempo)},
       {t:"Perf.",num:1,f:r=>badge(r.perfC)},
       {t:"Perf. qtd. (ref.)",num:1,f:r=>pct(r.perfQtd)},
@@ -1193,7 +1214,7 @@
     ],parTodas.slice().sort((x,y)=>x.dtIni-y.dtIni),r=>r.orfa?"orfa":"");
   
     /* ---------- PERFORMANCE (por tempo) ---------- */
-    kpi("pKpi",a.perfC,`Meta ${hhmm(metaT)} ÷ produtividade real ${hhmm(a.produtReal)} · ${a.validos} válidos em ${hhmm(a.turnoRealMin)}`,"pKpiBar");
+    kpi("pKpi",a.perfC,`Meta ${hhmmss(metaT)} ÷ produtividade real ${hhmmss(a.produtReal)} · ${a.validos} válidos em ${hhmm(a.turnoRealMin)}`,"pKpiBar");
     setT("pReal",a.real);
     setT("pRealSub",`${a.validos} válidos (produção − impossibilidades) · ${eqs.length} equipe(s) × ${datas.length} data(s)`);
     setT("pMeta",hhmm(a.tempoNec));
@@ -1232,9 +1253,9 @@
                 :`Déficit médio de ${Math.abs(saldo).toFixed(1)} equipe/dia frente à carga na meta de tempo`)
       : "Sem dados no filtro");
   
-    setT("pMedia",a.produtReal==null?"—":hhmm(a.produtReal));
+    setT("pMedia",a.produtReal==null?"—":hhmmss(a.produtReal));
     setC("pMedia",(a.produtReal??1e9)<=metaT?"var(--ok)":"var(--bad)");
-    setT("pMediaSub",`Produtividade real por atendimento válido · meta ${hhmm(metaT)}`);
+    setT("pMediaSub",`Produtividade real por atendimento válido · meta ${hhmmss(metaT)}`);
     setT("pEqDia",a.equipeDias);
     setT("pEqDiaSub",`${eqs.length} equipe(s) × ${datas.length} data(s) com produção`);
     const naMeta=eqDia.filter(x=>x.produtReal!=null&&x.produtReal<=metaT).length;
@@ -1282,7 +1303,7 @@
       {t:"Realizados",num:1,f:r=>r.real},
       {t:"Imposs.",num:1,f:r=>r.imposs},
       {t:"Válidos",num:1,f:r=>r.validos},
-      {t:"Produt. real",num:1,f:r=>hhmm(r.produtReal)},
+      {t:"Produt. real",num:1,f:r=>hhmmss(r.produtReal)},
       {t:"Meta tempo",num:1,f:r=>hhmm(r.metaTempo)},
       {t:"Tempo necessário",num:1,f:r=>hhmm(r.tempoNec)},
       {t:"Performance",num:1,f:r=>badge(r.perfC)},
@@ -1300,7 +1321,7 @@
       {t:"Disponível",num:1,f:r=>hhmm(r.turnoRealMin)},
       {t:"Realizados",num:1,f:r=>r.real},{t:"Imposs.",num:1,f:r=>r.imposs},
       {t:"Válidos",num:1,f:r=>r.validos},
-      {t:"Produt. real",num:1,f:r=>hhmm(r.produtReal)},
+      {t:"Produt. real",num:1,f:r=>hhmmss(r.produtReal)},
       {t:"Performance",num:1,f:r=>badge(CFG.cap?Math.min(r.perf??0,1):r.perf)},
       {t:"Disp.",num:1,f:r=>badge(CFG.cap?Math.min(r.disp??0,1):r.disp)},
       {t:"Qual.",num:1,f:r=>badge(r.qual)},
@@ -1393,7 +1414,7 @@
       "PerformanceQtd%","MetaQtd","Qualidade%","Ocupacao%","OPE%",
       "BaseTempoTotal","RecorteParadas","LimiteCem"];
     const n=v=>v==null?"n/d":(v*100).toFixed(1).replace(".",",");
-    const d=v=>v==null?"n/d":String(Math.round(v)).replace(".",",");
+    const d=v=>v==null?"n/d":v.toFixed(2).replace(".",",");
     const L=ULTIMO.map(r=>[brDate(r.data),r.eq,r.turno,r.turnosNoDia,r.ambiguo?"SIM":"NAO",
       r.reg.join("/"),Math.round(r.tempoTotal),r.paradaMin.toFixed(0),r.paradaBruta.toFixed(0),
       r.turnoRealMin.toFixed(0),r.execMin.toFixed(0),n(r.dispC),
