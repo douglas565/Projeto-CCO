@@ -41,7 +41,6 @@
       <select id="cfgFmt"><option value="DD/MM">DD/MM/AAAA</option><option value="MM/DD">MM/DD/AAAA</option></select></div>
     <label class="chk"><input type="checkbox" id="cfgMetaDia" checked> Meta de 15 por equipe/dia (rateada entre turnos)</label>
     <label class="chk"><input type="checkbox" id="cfgCap"> Limitar componentes a 100%</label>
-    <label class="chk"><input type="checkbox" id="cfgStatus"> Status ≠ "Atendido" conta como impossibilidade</label>
     <label class="chk"><input type="checkbox" id="cfgOrfa"> Criar turno a partir de parada sem execução</label>
   </div>
 
@@ -49,7 +48,9 @@
   <div class="box">
     <div class="f"><label>Período — de</label><input type="date" id="fDe"></div>
     <div class="f"><label>até</label><input type="date" id="fAte"></div>
-    <div class="f"><label>Equipe</label><select id="fEquipe" multiple></select></div>
+    <div class="f" style="display:flex; flex-direction:column;"><label>Equipes</label>
+      <div id="fEquipeBox" style="background:#fff; border:1px solid var(--line); border-radius:6px; max-height:90px; overflow-y:auto; padding:4px 8px; min-width:180px; font-size:12px;"></div>
+    </div>
     <div class="f"><label>Turno</label><select id="fTurno"></select></div>
     <div class="f"><label>Regional</label><select id="fRegional"></select></div>
     <div class="f"><label>&nbsp;</label><button class="ghost" id="btnReset">Limpar filtros</button></div>
@@ -226,15 +227,13 @@
         <div class="formula">(Realizados − impossibilidades) / Realizados</div></div>
       <div class="card"><h3>Realizados</h3><div class="big sm" id="qReal">—</div><div class="sub" id="qRealSub">—</div></div>
       <div class="card"><h3>Impossibilidades</h3><div class="big sm" id="qImposs">—</div><div class="sub" id="qImpossSub">—</div></div>
-      <div class="card"><h3>Motivos classificados</h3><div class="big sm" id="qMotivosN">—</div><div class="sub" id="qMotivosNSub">—</div></div>
+      <div class="card"><h3>Motivos reportados</h3><div class="big sm" id="qMotivosN">—</div><div class="sub" id="qMotivosNSub">—</div></div>
     </div>
     <h2 class="sec">Impossibilidades no período <small>— acompanha o filtro geral de data</small></h2>
     <div class="grid c2">
       <div class="card"><h3>Impossibilidades por data</h3><svg id="chQualData" width="100%"></svg><div class="legend" id="legQualData"></div></div>
       <div class="card"><h3>Impossibilidades por motivo</h3><div id="chQualMotivo"></div></div>
       <div class="card"><h3>Impossibilidades por equipe</h3><div id="chQualEquipe"></div></div>
-      <div class="card"><h3>Classificação de motivos <small>— marque os que são impossibilidade</small></h3>
-        <div id="motivosBox" class="motivos"></div></div>
     </div>
     <h2 class="sec">Atendimentos classificados como impossibilidade</h2>
     <div class="card p0"><div class="tblbox"><table id="tImposs"></table></div></div>
@@ -266,7 +265,7 @@
       <li><b>Performance</b> = realizados ÷ meta. A meta é de <b>15 chamados finalizados por equipe/dia</b>; quando a equipe atua em mais de um turno no mesmo dia, os 15 são rateados entre os turnos para que a soma do dia feche em 15. Desmarcando a opção nos parâmetros, a meta passa a valer 15 por turno.</li>
       <li><b>Equipes necessárias</b> = chamados realizados no dia ÷ 15, arredondado para cima. <b>Equipes disponíveis</b> = equipes distintas com produção apontada no dia. A diferença aparece no card <b>Capacidade</b>: positiva indica folga, negativa indica déficit.</li>
       <li>Os componentes <b>não são limitados a 100%</b>: superação da meta aparece com o valor real (ex.: 20 chamados ÷ 15 = 133,3%). O limite pode ser reativado nos parâmetros.</li>
-      <li><b>Qualidade</b>: impossibilidades identificadas pela coluna <b>Motivo</b>, conforme classificação marcada nesta aba. O critério por status ≠ "Atendido" é opcional e vem desativado — a aba de diagnóstico lista os valores reais da coluna Atendimento para apoiar a decisão.</li>
+      <li><b>Qualidade</b>: as impossibilidades são capturadas automaticamente pela coluna "Atendimento" (Status) proveniente da integração via API; qualquer status diferente de "Atendido" será enquadrado como impossibilidade.</li>
       <li><b>Por que não 100%?</b> (aba Performance) decompõe o tempo disponível em quatro parcelas que somam exatamente o total: tempo produtivo na meta, excesso de execução nos atendimentos válidos, execução gasta em impossibilidades e tempo sem OS apontada. As três últimas são a perda, em pontos percentuais, até os 100%.</li>
       <li>A planilha FR-CWB-GL-0001-00 <b>não é importada</b>: serviu apenas de referência para a estrutura das fórmulas.</li>
       <li>Turnos vêm de HORA INÍCIO/HORA FIM. Em faixas de sobreposição vence o turno de início mais cedo; a linha é marcada como ambígua no detalhamento. OS antes do fim do T3 são atribuídas ao turno iniciado no dia anterior.</li>

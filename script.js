@@ -501,7 +501,7 @@
         if(semEq) EST.diag.push(`Exportação: ${semEq} de ${EST.atend.length} atendimento(s) sem equipe preenchida.`);
         const stList=Object.entries(EST.statusVals).sort((a,b)=>b[1]-a[1])
           .map(([k,v])=>`${esc(k)} (${v})`).join(" · ");
-        EST.diag.push(`Exportação · valores da coluna Atendimento: ${stList||"nenhum"}. Use isso para decidir sobre a opção "Status ≠ Atendido conta como impossibilidade".`);
+        EST.diag.push(`Exportação · valores da coluna Atendimento (status): ${stList||"nenhum"}. Tudo que diferir de "Atendido" será contabilizado automaticamente como Impossibilidade.`);
         const nEq=uniq(EST.atend.map(a=>a.eq)).length;
         EST.fontes.exportacao=`${fe.nome} · aba "${aba}" · cabeçalho na linha ${linhaHeader} · ${EST.atend.length} atendimento(s) · ${nEq} equipe(s)${colEq?` · coluna de equipe: "${colEq}"`:" · SEM coluna de equipe"}${ign.length?` · ${ign.length} do CCO excluído(s)`:""}`;
       }
@@ -559,7 +559,6 @@
   
       EST.carregado=true;
       atualizarSelos();
-      classificarMotivosPadrao();
       construir();
       inicializarFiltros();
       render();
@@ -605,17 +604,7 @@
   }
   
   /* ===================== IMPOSSIBILIDADES ===================== */
-  function classificarMotivosPadrao(){
-    const salvo=localStorage.getItem("ope_motivos_imposs");
-    if(salvo){ try{ EST.motivosImposs=new Set(JSON.parse(salvo)); EST.classificado=true; return; }catch{} }
-    EST.motivosImposs=new Set(uniq(EST.atend.map(a=>a.motivo))
-      .filter(m=>/impossib|nao localizad|não localizad|sem acesso|obstru|impedid|recusa|inacess|n executad|nao executad/i.test(m)));
-    EST.classificado=true;
-  }
-  const ehImposs = a =>
-    (CFG.statusImposs && a.status && norm(a.status)!=="ATENDIDO") ||
-    EST.motivosImposs.has(a.motivo) ||
-    /impossib/i.test(a.motivo+" "+a.sol);
+  const ehImposs = a => a.status && norm(a.status) !== "ATENDIDO";
   
   /* ===================== CONSTRUÇÃO DOS GRUPOS ===================== */
   function construir(){
@@ -806,6 +795,17 @@
   
   /* ========================= FILTROS ========================= */
   let GRUPOS=[], ULTIMO=[];
+  function preencherEquipes(id, vals) {
+    const box = $(id); if (!box) return;
+    const selecionados = Array.from(box.querySelectorAll("input:checked")).map(i => i.value);
+    let html = '';
+    vals.forEach(v => {
+      const checked = selecionados.length === 0 || selecionados.includes(v) ? "checked" : "";
+      html += `<label style="display:flex; align-items:center; gap:5px; margin-bottom:3px; cursor:pointer;"><input type="checkbox" value="${esc(v)}" ${checked}> ${esc(v)}</label>`;
+    });
+    box.innerHTML = html;
+    box.querySelectorAll("input").forEach(i => i.onchange = render);
+  }
   function preencher(id, vals, label) {
     const s = $(id); if (!s) return;
     const isMultiple = s.multiple;
@@ -828,7 +828,7 @@
   function inicializarFiltros(){
     const datas=uniq([...EST.grupos.map(g=>g.data),
                       ...EST.orfas.map(p=>p.dataRef).filter(Boolean)]);
-    preencher("fEquipe",uniq([...EST.grupos.map(g=>g.eq),...EST.orfas.map(p=>p.eq)]),"Todas");
+    preencherEquipes("fEquipeBox", uniq([...EST.grupos.map(g=>g.eq),...EST.orfas.map(p=>p.eq)]));
     preencher("fTurno",uniq([...EST.grupos.map(g=>g.turno),
                              ...EST.orfas.map(p=>p.turno).filter(Boolean)]),"Todos");
     const regs=uniq(EST.grupos.flatMap(g=>g.reg));
@@ -842,15 +842,21 @@
     const e = $(id);
     if (!e) return "";
     if (e.multiple) return Array.from(e.selectedOptions).map(o => o.value).filter(v => v !== "");
+    if (e.classList && e.classList.contains("filter-box") || e.id === "fEquipeBox") {
+      const all = e.querySelectorAll("input");
+      const checked = Array.from(e.querySelectorAll("input:checked")).map(i => i.value);
+      if (checked.length === all.length) return []; // all checked = no filter
+      return checked;
+    }
     return e.value;
   };
   const dentro=(d,de,ate)=>(!de||d>=de)&&(!ate||d<=ate);
   function filtrar(){
-    const de=val("fDe"),ate=val("fAte"),e=val("fEquipe"),t=val("fTurno"),r=val("fRegional");
+    const de=val("fDe"),ate=val("fAte"),e=val("fEquipeBox"),t=val("fTurno"),r=val("fRegional");
     return GRUPOS.filter(g=>dentro(g.data,de,ate)&&(!e.length||e.includes(g.eq))&&(!t||g.turno===t)&&(!r||g.reg.includes(r)));
   }
   function filtrarOrfas(){
-    const de=val("fDe"),ate=val("fAte"),e=val("fEquipe"),t=val("fTurno"),r=val("fRegional");
+    const de=val("fDe"),ate=val("fAte"),e=val("fEquipeBox"),t=val("fTurno"),r=val("fRegional");
     if(r) return [];
     return EST.orfas.filter(p=>dentro(p.dataRef,de,ate)&&(!e.length||e.includes(p.eq))&&(!t||p.turno===t));
   }
@@ -1335,8 +1341,8 @@
     setT("qReal",a.real); setT("qRealSub",`Atendimentos na Exportação · ${a.validos} válidos alimentam a Performance`);
     setT("qImposs",a.imposs);
     setT("qImpossSub",a.real?`${pct(a.imposs/a.real)} do total`:"—");
-    setT("qMotivosN",EST.motivosImposs.size);
-    setT("qMotivosNSub",`de ${uniq(EST.atend.map(x=>x.motivo)).length} motivo(s) distintos na base`);
+    setT("qMotivosN",Object.keys(a.motivosImposs).length);
+    setT("qMotivosNSub",`motivados entre os ${uniq(EST.atend.map(x=>x.motivo)).length} distintos mapeados na base`);
     const serQual=[{k:"Impossibilidades",color:"#7B52AB",vals:porData.map(x=>x.imposs)},
                    {k:"Atendimentos válidos",color:"#dcd3e8",vals:porData.map(x=>x.validos)}];
     chartBarras($("chQualData"),datas,serQual,{stack:true,catLabel:lblData,
@@ -1345,7 +1351,7 @@
     hbars($("chQualMotivo"),porChave(a.motivosImposs,"var(--purple)"),v=>v);
     const iEq={}; impos.forEach(x=>{const k=semSufixo(x.eq);iEq[k]=(iEq[k]||0)+1;});
     hbars($("chQualEquipe"),porChave(iEq,"var(--purple)"),v=>v);
-    renderMotivos();
+    
     tabela($("tImposs"),[
       {t:"Nº",f:r=>esc(r.n)},{t:"Protocolo",f:r=>esc(r.prot)},{t:"Motivo",f:r=>esc(r.motivo)},
       {t:"Status",f:r=>esc(r.status||"—")},{t:"Solução",f:r=>esc(r.sol||"—")},
@@ -1390,19 +1396,7 @@
     ],ats.slice().sort((x,y)=>y.dtIni-x.dtIni));
   }
   
-  function renderMotivos(){
-    const box=$("motivosBox"); if(!box) return;
-    const cont={}; EST.atend.forEach(a=>cont[a.motivo]=(cont[a.motivo]||0)+1);
-    box.innerHTML=Object.entries(cont).sort((a,b)=>b[1]-a[1]).map(([m,q])=>{
-      const on=EST.motivosImposs.has(m);
-      return `<label class="mchip ${on?"on":""}"><input type="checkbox" data-motivo="${esc(m)}" ${on?"checked":""}>
-              ${esc(m)} <b>${q}</b></label>`;}).join("")||'<div class="sub">Carregue a Exportação Consulta.</div>';
-    box.querySelectorAll("input").forEach(i=>i.onchange=()=>{
-      i.checked?EST.motivosImposs.add(i.dataset.motivo):EST.motivosImposs.delete(i.dataset.motivo);
-      localStorage.setItem("ope_motivos_imposs",JSON.stringify([...EST.motivosImposs]));
-      render();
-    });
-  }
+
   
   /* ========================= CSV ========================= */
   function exportarCSV(){
@@ -1445,7 +1439,6 @@
     alert('Formato de data alterado. Clique em "Carregar dados" para reler as planilhas.'); });
   on("cfgMetaDia","onchange",e=>{ CFG.metaDia=e.target.checked; render(); });
   on("cfgCap","onchange",e=>{ CFG.cap=e.target.checked; render(); });
-  on("cfgStatus","onchange",e=>{ CFG.statusImposs=e.target.checked; render(); });
   on("cfgOrfa","onchange",e=>{ CFG.criarOrfa=e.target.checked;
     if(EST.carregado){ construir(); inicializarFiltros(); render(); } });
   /* novos controles (opcionais no HTML) */
