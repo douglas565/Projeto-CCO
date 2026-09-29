@@ -501,7 +501,7 @@
         if(semEq) EST.diag.push(`Exportação: ${semEq} de ${EST.atend.length} atendimento(s) sem equipe preenchida.`);
         const stList=Object.entries(EST.statusVals).sort((a,b)=>b[1]-a[1])
           .map(([k,v])=>`${esc(k)} (${v})`).join(" · ");
-        EST.diag.push(`Exportação · valores da coluna Atendimento (status): ${stList||"nenhum"}. Tudo que diferir de "Atendido" será contabilizado automaticamente como Impossibilidade.`);
+        EST.diag.push(`Exportação · valores da coluna Atendimento (status): ${stList||"nenhum"}. Tudo que diferir de "Atendido" mas contiver "IMP" será contabilizado automaticamente como Impossibilidade.`);
         const nEq=uniq(EST.atend.map(a=>a.eq)).length;
         EST.fontes.exportacao=`${fe.nome} · aba "${aba}" · cabeçalho na linha ${linhaHeader} · ${EST.atend.length} atendimento(s) · ${nEq} equipe(s)${colEq?` · coluna de equipe: "${colEq}"`:" · SEM coluna de equipe"}${ign.length?` · ${ign.length} do CCO excluído(s)`:""}`;
       }
@@ -604,7 +604,10 @@
   }
   
   /* ===================== IMPOSSIBILIDADES ===================== */
-  const ehImposs = a => a.status && norm(a.status) !== "ATENDIDO";
+  const ehImposs = a => {
+    const st = norm(a.status || "");
+    return st !== "ATENDIDO" && st.includes("IMP");
+  };
   
   /* ===================== CONSTRUÇÃO DOS GRUPOS ===================== */
   function construir(){

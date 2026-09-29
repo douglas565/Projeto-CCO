@@ -48,8 +48,8 @@
   <div class="box">
     <div class="f"><label>Período — de</label><input type="date" id="fDe"></div>
     <div class="f"><label>até</label><input type="date" id="fAte"></div>
-    <div class="f" style="display:flex; flex-direction:column;"><label>Equipes</label>
-      <div id="fEquipeBox" style="background:#fff; border:1px solid var(--line); border-radius:6px; max-height:90px; overflow-y:auto; padding:4px 8px; min-width:180px; font-size:12px;"></div>
+    <div class="f" style="display:flex; flex-direction:column;"><label>Equipe</label>
+      <div id="fEquipeBox" class="filter-box" style="background:#fff; border:1px solid var(--line); border-radius:6px; max-height:120px; overflow-y:auto; padding:7px 10px; min-width:180px; font-size:inherit; color:var(--txt);"></div>
     </div>
     <div class="f"><label>Turno</label><select id="fTurno"></select></div>
     <div class="f"><label>Regional</label><select id="fRegional"></select></div>
@@ -265,7 +265,7 @@
       <li><b>Performance</b> = realizados ÷ meta. A meta é de <b>15 chamados finalizados por equipe/dia</b>; quando a equipe atua em mais de um turno no mesmo dia, os 15 são rateados entre os turnos para que a soma do dia feche em 15. Desmarcando a opção nos parâmetros, a meta passa a valer 15 por turno.</li>
       <li><b>Equipes necessárias</b> = chamados realizados no dia ÷ 15, arredondado para cima. <b>Equipes disponíveis</b> = equipes distintas com produção apontada no dia. A diferença aparece no card <b>Capacidade</b>: positiva indica folga, negativa indica déficit.</li>
       <li>Os componentes <b>não são limitados a 100%</b>: superação da meta aparece com o valor real (ex.: 20 chamados ÷ 15 = 133,3%). O limite pode ser reativado nos parâmetros.</li>
-      <li><b>Qualidade</b>: as impossibilidades são capturadas automaticamente pela coluna "Atendimento" (Status) proveniente da integração via API; qualquer status diferente de "Atendido" será enquadrado como impossibilidade.</li>
+      <li><b>Qualidade</b>: as impossibilidades são capturadas automaticamente pela coluna "Atendimento" (Status) proveniente da integração via API; todo status diferente de "Atendido" que contiver "IMP" em seu texto será enquadrado como impossibilidade.</li>
       <li><b>Por que não 100%?</b> (aba Performance) decompõe o tempo disponível em quatro parcelas que somam exatamente o total: tempo produtivo na meta, excesso de execução nos atendimentos válidos, execução gasta em impossibilidades e tempo sem OS apontada. As três últimas são a perda, em pontos percentuais, até os 100%.</li>
       <li>A planilha FR-CWB-GL-0001-00 <b>não é importada</b>: serviu apenas de referência para a estrutura das fórmulas.</li>
       <li>Turnos vêm de HORA INÍCIO/HORA FIM. Em faixas de sobreposição vence o turno de início mais cedo; a linha é marcada como ambígua no detalhamento. OS antes do fim do T3 são atribuídas ao turno iniciado no dia anterior.</li>
