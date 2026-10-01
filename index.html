@@ -68,6 +68,7 @@
     <button class="tab-btn t-disp" data-tab="disp">Disponibilidade</button>
     <button class="tab-btn t-perf" data-tab="perf">Performance</button>
     <button class="tab-btn t-qual" data-tab="qual">Qualidade</button>
+    <button class="tab-btn" data-tab="equipe">Análise por equipe</button>
     <button class="tab-btn" data-tab="fontes">Fontes &amp; Horários</button>
     <button class="tab-btn" data-tab="dados">Dados &amp; diagnóstico</button>
   </div>
@@ -197,18 +198,18 @@
       <div class="card"><h3>Realizados por equipe</h3><div id="chPerfQtdEq"></div></div>
     </div>
 
-    <h2 class="sec">Por que não 100%? <small>— decomposição do tempo disponível</small></h2>
+    <h2 class="sec">Por que não 100%? <small>— leitura da meta de produção (15 por equipe/dia)</small></h2>
     <div class="grid c2">
-      <div class="card"><h3>Para onde foi o tempo disponível</h3>
+      <div class="card"><h3>Meta × realizado — composição da performance</h3>
         <table id="tPerfPorque"></table>
         <div class="sub" id="pPorqueNota" style="margin-top:10px"></div></div>
-      <div class="card"><h3>Perda de performance por causa <small>— pontos percentuais</small></h3>
+      <div class="card"><h3>Maiores lacunas por equipe/dia <small>— chamados abaixo da meta</small></h3>
         <div id="chPerfPerda"></div>
-        <h3 style="margin-top:16px">Maior perda por equipe</h3>
+        <h3 style="margin-top:16px">Chamados abaixo da meta por equipe</h3>
         <div id="chPerfPerdaEq"></div></div>
     </div>
 
-    <h2 class="sec">Onde o tempo foi por equipe/dia <small>— ordenado pela maior perda</small></h2>
+    <h2 class="sec">Meta × realizado por equipe/dia <small>— ordenado pela maior lacuna</small></h2>
     <div class="card p0"><div class="tblbox"><table id="tPorqueEqDia"></table></div></div>
 
     <h2 class="sec">Produção por turno</h2>
@@ -239,6 +240,15 @@
     <div class="card p0"><div class="tblbox"><table id="tImposs"></table></div></div>
   </section>
 
+  <!-- ======================== ANÁLISE POR EQUIPE ======================== -->
+  <section class="panel" id="panel-equipe">
+    <h2 class="sec">Resumo por equipe <small>— disponibilidade × performance × qualidade → OPE no período filtrado</small></h2>
+    <div class="card p0"><div class="tblbox"><table id="tAnEq"></table></div></div>
+
+    <h2 class="sec">Abertura por equipe/dia <small>— mesma leitura, data a data</small></h2>
+    <div class="card p0"><div class="tblbox"><table id="tAnEqDia"></table></div></div>
+  </section>
+
   <!-- ====================== FONTES & HORÁRIOS ====================== -->
   <section class="panel" id="panel-fontes">
     <h2 class="sec">API Exati <small>— coleta automática dos atendimentos</small></h2>
@@ -262,11 +272,12 @@
       <li><b>Disponibilidade</b> = (Turno real − paradas) ÷ Turno real. O <b>turno real</b> é a coluna <b>META DISPONIBILIDADE</b> da planilha Horários: o turno já descontados mobilização, desmobilização, locomoção e intervalo/almoço. O único fator que reduz o indicador abaixo de 100% é o <b>relatório de paradas</b>.</li>
       <li>Validação da base: META DISPONIBILIDADE ÷ META PRODUÇÃO = META PRODUTIVIDADE (350 ÷ 15 = 0:23; 290 ÷ 15 = 0:19).</li>
       <li><b>Início</b> e <b>Conclusão</b> da Exportação não entram na Disponibilidade: servem para alocar a OS em data/equipe/turno e para tempo de execução, ocupação e produtividade.</li>
-      <li><b>Performance</b> = realizados ÷ meta. A meta é de <b>15 chamados finalizados por equipe/dia</b>; quando a equipe atua em mais de um turno no mesmo dia, os 15 são rateados entre os turnos para que a soma do dia feche em 15. Desmarcando a opção nos parâmetros, a meta passa a valer 15 por turno.</li>
+      <li><b>Performance</b> = realizados ÷ meta de produção, <b>sem componente de tempo</b>. A meta é de <b>15 chamados por equipe/dia</b>; quando a equipe atua em mais de um turno no mesmo dia, os 15 são rateados entre os turnos para que a soma do dia feche em 15. Desmarcando a opção nos parâmetros, a meta passa a valer 15 por turno. É esta razão que define os 100%: 15 de 15 chamados = 100%.</li>
       <li><b>Equipes necessárias</b> = chamados realizados no dia ÷ 15, arredondado para cima. <b>Equipes disponíveis</b> = equipes distintas com produção apontada no dia. A diferença aparece no card <b>Capacidade</b>: positiva indica folga, negativa indica déficit.</li>
       <li>Os componentes <b>não são limitados a 100%</b>: superação da meta aparece com o valor real (ex.: 20 chamados ÷ 15 = 133,3%). O limite pode ser reativado nos parâmetros.</li>
       <li><b>Qualidade</b>: as impossibilidades são capturadas automaticamente pela coluna "Atendimento" (Status) proveniente da integração via API; todo status diferente de "Atendido" que contiver "IMP" em seu texto será enquadrado como impossibilidade.</li>
-      <li><b>Por que não 100%?</b> (aba Performance) decompõe o tempo disponível em quatro parcelas que somam exatamente o total: tempo produtivo na meta, excesso de execução nos atendimentos válidos, execução gasta em impossibilidades e tempo sem OS apontada. As três últimas são a perda, em pontos percentuais, até os 100%.</li>
+      <li><b>Por que não 100%?</b> (aba Performance) abre a meta de produção: quantos chamados a meta soma no filtro (15 × equipe-dia), quantos foram realizados, quanto <b>faltou</b> (ou excedeu) para 100% em pontos percentuais, as maiores lacunas por equipe/dia e por equipe, e o efeito das impossibilidades na Qualidade — que também compõe o OPE.</li>
+      <li>A aba <b>Análise por equipe</b> reúne, por equipe e por equipe/dia, os insumos (turno real, paradas, realizados, válidos) e os três componentes — <b>Disponibilidade, Performance e Qualidade</b> — até o <b>OPE</b> final.</li>
       <li>A planilha FR-CWB-GL-0001-00 <b>não é importada</b>: serviu apenas de referência para a estrutura das fórmulas.</li>
       <li>Turnos vêm de HORA INÍCIO/HORA FIM. Em faixas de sobreposição vence o turno de início mais cedo; a linha é marcada como ambígua no detalhamento. OS antes do fim do T3 são atribuídas ao turno iniciado no dia anterior.</li>
     </ul></div>

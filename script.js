@@ -1,5 +1,5 @@
 /* =====================================================================
-   BI OPE — CWB  ·  v2 (Performance por TEMPO — alinhada à FR-CWB-GL-0001)
+   BI OPE — CWB  ·  v3 (Performance por QUANTIDADE — 15 chamados/equipe-dia)
 
    Fontes: Horários (metas) · Exportação Consulta (execução) · Paradas
            Planejamento (opcional) · FR-CWB-GL-0001 (opcional, parâmetros)
@@ -9,15 +9,17 @@
      desmobilização, locomoção e intervalo).
      Cada parada é recortada à janela do turno.
 
-   PERFORMANCE  = META DE TEMPO (0:23 por atendimento)
-                  ÷ [ (Tempo total − Σ paradas) ÷ (produção − impossibilidades) ]
-                = (0:23 × válidos) ÷ tempo disponível
+   PERFORMANCE  = realizados ÷ meta de produção (15 chamados por equipe/dia;
+                  rateada entre turnos quando a equipe atua em mais de um
+                  turno no mesmo dia). Sem componente de tempo — 15 de 15
+                  chamados = 100%.
 
    QUALIDADE    = (Realizados − impossibilidades) / Realizados
+
    OPE          = Disponibilidade × Performance × Qualidade
 
-   A meta de produção por equipe/dia (12/15) permanece apenas como
-   referência (coluna "Perf. qtd."), fora do OPE.
+   Tempo (produtividade real, meta de tempo 0:23, execução) permanece como
+   referência operacional nas tabelas, fora do cálculo do OPE.
    Equipes CCO são excluídas de todos os cálculos.
    ===================================================================== */
 
@@ -34,7 +36,7 @@
     statusImposs:false,
     criarOrfa:false,
     metaDia:true,           // rateio da meta de quantidade (referência)
-    perfBase:"tempo",       // tempo | qtd
+    perfBase:"qtd",         // tempo | qtd — base da Performance (contrato: realizados ÷ meta de 15/equipe-dia)
     metaTempoMin:23,        // META DE TEMPO por atendimento (0:23)
     metaTempoFonte:"fixa",  // fixa | planilha (META PRODUTIVIDADE)
     recortarParadas:true
@@ -959,6 +961,10 @@
       :`<tr><td colspan="${cols.length}" style="color:#6b7385">Sem registros para o filtro.</td></tr>`}</tbody>`;
   }
   const badge=v=>`<span class="tag" style="background:${cor(v)}">${pct(v)}</span>`;
+  const fmtQ=v=>v==null||isNaN(v)?"—":String(Math.round(v*10)/10).replace(".",",");
+  const capV=v=>v==null?null:(CFG.cap?Math.min(v,1):v);
+  const opeDe=x=>{ const d=capV(x.disp),p=capV(x.perf),q=capV(x.qual);
+    return (d!=null&&p!=null)?d*p*(q??1):null; };
   const porChave=(obj,c)=>Object.entries(obj).map(([k,v])=>({k,v,c})).sort((a,b)=>b.v-a.v);
   
   /* ============ COMPOSIÇÃO DO TURNO (aba Disponibilidade) ============ */
@@ -989,97 +995,72 @@
                 : `Divergência de ${Math.round(dif)} min entre os descontos e a META DISPONIBILIDADE — o indicador usa o valor da coluna.`));
   }
   
-  /* ====== POR QUE NÃO 100%? — decomposição do tempo disponível ======
-     Identidade exata (não altera nenhum cálculo do OPE):
-       Disponível D = Tempo necessário na meta
-                    + Excesso de execução nos válidos
-                    + Execução gasta em impossibilidades
-                    + Tempo sem OS apontada
-       Performance = Nec ÷ D  →  cada parcela acima é a perda em pp.   */
-  function decomporPerf(x){
-    const D = x.turnoRealMin||0, E = x.execMin||0;
-    const R = x.real||0, I = x.imposs||0, V = x.validos||0;
-    const Nec = x.tempoNec||0;
-    const Eimp = R ? E*I/R : 0;          /* execução proporcional às impossibilidades */
-    const Eval = E - Eimp;               /* execução nos atendimentos válidos          */
-    const excesso = Eval - Nec;          /* válidos que passaram da meta de tempo      */
-    const fora = D - E;                  /* tempo disponível sem OS apontada           */
-    const sh = v => D ? v/D : null;
-    return {D,E,Nec,Eimp,Eval,excesso,fora,V,I,R,
-            pNec:sh(Nec), pExc:sh(excesso), pImp:sh(Eimp), pFora:sh(fora),
-            perf: D ? Nec/D : null};
-  }
-  const pp = v => v==null||isNaN(v) ? "—" : (v>=0?"−":"+")+(Math.abs(v)*100).toFixed(1)+" pp";
-
-  function renderPorque(a, gs, eqs, porEq, eqDia, metaT){
+  /* ====== POR QUE NÃO 100%? — leitura da meta de produção ======
+     Performance = realizados ÷ meta (15 chamados por equipe/dia) — SEM
+     componente de tempo. A seção decompõe a diferença até 100%: o que
+     faltou (ou excedeu) e o efeito das impossibilidades na Qualidade. */
+  function renderPorque(a, gs, eqs, eqDia){
     if(!$("tPerfPorque")) return;
-    const c = decomporPerf(a);
-    const rows = [
-      {it:"Tempo disponível efetivo (base do indicador)", v:c.D,       t:"base", imp:null},
-      {it:`Tempo produtivo na meta — ${c.V} válidos × ${hhmm(metaT)}`, v:c.Nec, t:"prod", imp:c.pNec},
-      {it:"Excesso de execução nos válidos (negativo = ritmo melhor que a meta)", v:c.excesso, t:"perda", imp:c.pExc},
-      {it:`Execução gasta em impossibilidades (${c.I} OS)`, v:c.Eimp,  t:"perda", imp:c.pImp},
-      {it:"Tempo sem OS apontada (deslocamento, espera, apontamento faltante)", v:c.fora, t:"perda", imp:c.pFora}
+    const meta=a.metaProd||0, real=a.real||0;
+    const gap=Math.max(0,meta-real), exced=Math.max(0,real-meta);
+    const pc=v=>meta?(v/meta*100).toFixed(1).replace(".",",")+" pp":"—";
+
+    /* composição da meta */
+    const rows=[
+      {it:`Meta de produção — ${a.equipeDias} equipe-dia × 15`, v:meta, pm:1, ef:"—", t:"base"},
+      {it:"Realizados no período", v:real, pm:meta?real/meta:null, ef:`performance: ${pct(a.perfC)}`, t:"prod"},
+      {it:"Faltando para a meta", v:gap, pm:meta?gap/meta:null, ef:gap?`−${pc(gap)} na performance`:"—", t:gap?"perda":"vazio"},
+      {it:"Excedente sobre a meta", v:exced, pm:meta?exced/meta:null, ef:exced?`+${pc(exced)} na performance`:"—", t:exced?"prod":"vazio"},
+      {it:`Impossibilidades — impactam a Qualidade (${a.imposs} em ${real})`, v:a.imposs, pm:null, ef:real?`−${(a.imposs/real*100).toFixed(1).replace(".",",")} pp na qualidade`:"—", t:"perda"}
     ];
     tabela($("tPerfPorque"),[
-      {t:"Componente",f:r=>r.it},
-      {t:"Minutos",num:1,f:r=>Math.round(r.v||0)},
-      {t:"H:MM",num:1,f:r=>hhmm(r.v)},
-      {t:"% do disponível",num:1,f:r=>c.D?pct(Math.abs(r.v||0)/c.D):"—"},
-      {t:"Efeito na performance",num:1,f:r=>r.t==="base"?"—":(r.t==="prod"?"+"+(r.imp*100).toFixed(1)+" pp":pp(r.imp))}
+      {t:"Item",f:r=>r.it},
+      {t:"Chamados",num:1,f:r=>fmtQ(r.v)},
+      {t:"% da meta",num:1,f:r=>r.pm==null?"—":(r.pm*100).toFixed(1).replace(".",",")+"%"},
+      {t:"Efeito nos indicadores",f:r=>r.ef}
     ],rows,r=>r.t==="prod"?"prod":(r.t==="perda"?"perda":""));
 
-    /* ranking das causas */
-    const causas=[
-      {k:"Excesso de tempo por atendimento", v:Math.max(0,c.pExc||0)},
-      {k:"Impossibilidades consumindo tempo", v:Math.max(0,c.pImp||0)},
-      {k:"Tempo sem OS apontada",            v:Math.max(0,c.pFora||0)}
-    ].sort((x,y)=>y.v-x.v);
-    hbars($("chPerfPerda"),causas.map(x=>({k:x.k,v:x.v,c:"var(--bad)"})),v=>pp(v));
+    /* maiores lacunas por equipe/dia */
+    const lac=eqDia.filter(x=>x.real<x.meta)
+      .map(x=>({k:`${brDate(x.data).slice(0,5)} · ${semSufixo(x.eq)}`, v:x.meta-x.real, c:"var(--bad)"}))
+      .sort((x,y)=>y.v-x.v);
+    hbars($("chPerfPerda"),lac,v=>`${fmtQ(v)} abaixo`);
 
-    /* pior causa por equipe */
-    const perdaEq = eqs.map((e,i)=>{
-      const d=decomporPerf(porEq[i]);
-      const cand=[["excesso de tempo",d.pExc],["impossibilidades",d.pImp],["tempo sem OS",d.pFora]]
-                  .filter(x=>x[1]!=null).sort((x,y)=>y[1]-x[1])[0]||["—",0];
-      return {k:`${semSufixo(e)} — ${cand[0]}`, v:Math.max(0,cand[1]||0)};
-    }).sort((x,y)=>y.v-x.v);
-    hbars($("chPerfPerdaEq"),perdaEq.map(x=>({...x,c:"var(--warn)"})),v=>pp(v));
+    /* déficit de chamados por equipe (soma dos dias abaixo da meta) */
+    const defEq={};
+    eqDia.forEach(x=>{ const d=x.meta-x.real; if(d>0){ const k=semSufixo(x.eq); defEq[k]=(defEq[k]||0)+d; } });
+    hbars($("chPerfPerdaEq"),porChave(defEq,"var(--warn)"),v=>`${fmtQ(v)} abaixo`);
 
-    /* nota automática */
-    const maior=causas[0];
+    /* nota automática — explicação do resultado */
     const txt=[];
-    if(a.perf!=null && a.perf>=1){
-      txt.push(`Performance de <b>${pct(a.perfC)}</b>: o tempo necessário na meta já supera o tempo disponível — a equipe entregou mais do que o ritmo contratual exige.`);
+    txt.push(`A <b>meta de produção</b> é de <b>15 chamados por equipe/dia</b>${CFG.metaDia?" — quando a equipe atua em mais de um turno no mesmo dia, os 15 são rateados entre os turnos para que a soma do dia feche em 15":" (15 por turno)"}.`);
+    txt.push(`No filtro atual a meta soma <b>${fmtQ(meta)}</b> chamado(s) em ${a.equipeDias} equipe-dia; foram realizados <b>${real}</b> → <b>${pct(a.perfC)}</b>.`);
+    if(real<meta){
+      txt.push(`Faltaram <b>${fmtQ(meta-real)} chamado(s)</b> (${pc(meta-real)} da meta) para 100%.`);
+      const piores=eqDia.filter(x=>x.real<x.meta).sort((x,y)=>(x.real/x.meta)-(y.real/y.meta)).slice(0,3);
+      if(piores.length) txt.push(`Maiores lacunas: ${piores.map(x=>`<b>${esc(semSufixo(x.eq))}</b> em ${brDate(x.data).slice(0,5)} (${x.real} de ${fmtQ(x.meta)})`).join(" · ")}.`);
+    } else if(real===meta){
+      txt.push(`A meta foi atingida exatamente — 100%.`);
     } else {
-      txt.push(`Performance de <b>${pct(a.perfC)}</b> — faltam <b>${pp(1-(a.perf??0)).replace("−","")}</b> para 100%. Maior causa: <b>${maior.k.toLowerCase()}</b> (${pp(maior.v)}).`);
+      txt.push(`A meta foi <b>superada em ${fmtQ(real-meta)} chamado(s)</b> — por isso a performance passa de 100%.`);
     }
-    if(c.fora<0) txt.push("Atenção: a soma das OS excede o tempo disponível — há sobreposição de atendimentos ou apontamento fora da janela do turno.");
-    txt.push(`Produtividade real de <b>${hhmmss(a.produtReal)}</b> por atendimento válido contra a meta de <b>${hhmmss(metaT)}</b>.`);
-    txt.push(`Base do tempo disponível: ${textoMetodo()} — ${hhmm(a.tempoTotal)} de tempo total menos ${hhmm(a.paradaMin)} de parada.`);
-    if(CFG.metodo==="meta") txt.push("Como a base é a META DISPONIBILIDADE, o tempo sem OS apontada reúne deslocamento entre pontos, espera e qualquer período não registrado na Exportação.");
+    if(a.imposs) txt.push(`As <b>${a.imposs} impossibilidade(s)</b> entram nos realizados e não descontam da meta de produção; o efeito aparece na <b>Qualidade</b> (${pct(a.qualC)}) e, por consequência, no OPE.`);
     setH("pPorqueNota", txt.join(" "));
 
-    /* detalhe por equipe/dia */
-    const det = eqDia.map(x=>({...x, d:decomporPerf(x)}))
-                     .sort((x,y)=>(x.d.perf??9)-(y.d.perf??9));
+    /* meta × realizado por equipe/dia — ordenado pela maior lacuna */
+    const det=eqDia.slice().sort((x,y)=>((x.real-x.meta)-(y.real-y.meta))||x.data.localeCompare(y.data)||x.eq.localeCompare(y.eq));
     tabela($("tPorqueEqDia"),[
       {t:"Data",f:r=>brDate(r.data)},{t:"Equipe",f:r=>esc(semSufixo(r.eq))},
       {t:"Turnos",f:r=>r.turnos.join(", ")},
-      {t:"Disponível",num:1,f:r=>hhmm(r.d.D)},
-      {t:"Necessário na meta",num:1,f:r=>hhmm(r.d.Nec)},
-      {t:"Excesso execução",num:1,f:r=>hhmm(r.d.excesso)},
-      {t:"Impossibilidades",num:1,f:r=>hhmm(r.d.Eimp)},
-      {t:"Sem OS apontada",num:1,f:r=>hhmm(r.d.fora)},
-      {t:"Perda excesso",num:1,f:r=>pp(r.d.pExc)},
-      {t:"Perda imposs.",num:1,f:r=>pp(r.d.pImp)},
-      {t:"Perda sem OS",num:1,f:r=>pp(r.d.pFora)},
-      {t:"Performance",num:1,f:r=>badge(CFG.cap?Math.min(r.d.perf??0,1):r.d.perf)},
-      {t:"Causa principal",f:r=>{
-         const cand=[["Excesso de tempo",r.d.pExc],["Impossibilidades",r.d.pImp],["Tempo sem OS",r.d.pFora]]
-                     .filter(x=>x[1]!=null).sort((x,y)=>y[1]-x[1])[0];
-         return cand&&cand[1]>0?esc(cand[0]):"—"; }}
-    ],det,r=>(r.d.perf!=null&&r.d.perf>=1)?"ok":"");
+      {t:"Meta",num:1,f:r=>fmtQ(r.meta)},
+      {t:"Realizados",num:1,f:r=>r.real},
+      {t:"Válidos",num:1,f:r=>r.validos},
+      {t:"Imposs.",num:1,f:r=>r.imposs},
+      {t:"Faltando",num:1,f:r=>r.real>=r.meta?"0":fmtQ(r.meta-r.real)},
+      {t:"Performance",num:1,f:r=>badge(capV(r.perf))},
+      {t:"Qual.",num:1,f:r=>badge(capV(r.qual))},
+      {t:"OPE",num:1,f:r=>badge(opeDe(r))}
+    ],det,r=>r.real<r.meta?"perda":"ok");
   }
 
   /* ========================= RENDER ========================= */
@@ -1113,11 +1094,11 @@
         ${gs.length} turno(s) · ${a.equipeDias} equipe-dia · ${eqs.length} equipe(s) · ${a.real} atendimento(s) (${a.validos} válidos).
         ${av.length?"Atenção: "+av.join(" · ")+".":""}
         <div class="chips"><span class="chip">Tempo total: ${textoMetodo()}</span>
-        <span class="chip">Performance por ${CFG.perfBase==="qtd"?"quantidade (referência)":"tempo · meta "+hhmm(metaT)+"/atendimento"}</span>
+        <span class="chip">Performance por quantidade · meta de 15/equipe-dia</span>
         <span class="chip">${CFG.recortarParadas?"Paradas recortadas ao turno":"Paradas integrais"}</span>
         <span class="chip">${CFG.cap?"Componentes limitados a 100%":"Superação da meta permitida"}</span>
         <span class="chip">Equipes CCO ignoradas</span>
-        <span class="chip">${EST.motivosImposs.size} motivo(s) como impossibilidade</span></div></div>`;
+        <span class="chip">Impossibilidades automáticas (status com "IMP")</span></div></div>`;
     }
   
     /* ---------- GERAL ---------- */
@@ -1128,7 +1109,7 @@
     setH("gOpeSub",`${pct(a.dispC)} × ${pct(a.perfC)} × ${pct(a.qualC)}`);
     const kpi=(id,v,sub,bar)=>{ setT(id,pct(v)); setT(id+"Sub",sub); setBar(bar,v); };
     kpi("gDisp",a.dispC,`${hhmm(a.turnoRealMin)} disponíveis de ${hhmm(a.tempoTotal)} de tempo total`,"gDispBar");
-    kpi("gPerf",a.perfC,`Meta ${hhmmss(metaT)}/atend. ÷ produtividade real ${hhmmss(a.produtReal)}`,"gPerfBar");
+    kpi("gPerf",a.perfC,`${a.real} realizados ÷ ${fmtQ(a.metaProd)} de meta · 15/equipe-dia`,"gPerfBar");
     kpi("gQual",a.qualC,a.real?`${a.imposs} impossibilidade(s) em ${a.real}`:"Sem atendimentos","gQualBar");
   
     setT("kTurnoReal",hhmm(a.turnoRealMin));
@@ -1174,10 +1155,44 @@
       {t:"Produt. real",num:1,f:r=>hhmmss(r.produtReal)},
       {t:"Meta tempo",num:1,f:r=>hhmm(r.metaTempo)},
       {t:"Perf.",num:1,f:r=>badge(r.perfC)},
-      {t:"Perf. qtd. (ref.)",num:1,f:r=>pct(r.perfQtd)},
       {t:"Qual.",num:1,f:r=>badge(r.qualC)},
       {t:"OPE",num:1,f:r=>badge(r.ope)}
     ],gs,r=>r.ambiguo?"amb":"ok");
+
+    /* ---------- ANÁLISE POR EQUIPE ---------- */
+    const anEq=eqs.map((e,i)=>{
+      const rx=porEq[i];
+      const eds=new Set(gs.filter(g=>g.eq===e).map(g=>g.data)).size;
+      return {...rx, eq:e, eds};
+    }).sort((x,y)=>(y.ope??-1)-(x.ope??-1));
+    tabela($("tAnEq"),[
+      {t:"Equipe",f:r=>esc(semSufixo(r.eq))},
+      {t:"Equipe-dia",num:1,f:r=>r.eds},
+      {t:"Turno real",num:1,f:r=>hhmm(r.turnoRealMin)},
+      {t:"Paradas",num:1,f:r=>hhmm(r.paradaMin)},
+      {t:"Disponibilidade",num:1,f:r=>badge(r.dispC)},
+      {t:"Realizados",num:1,f:r=>r.real},
+      {t:"Imposs.",num:1,f:r=>r.imposs},
+      {t:"Válidos",num:1,f:r=>r.validos},
+      {t:"Performance",num:1,f:r=>badge(r.perfC)},
+      {t:"Qualidade",num:1,f:r=>badge(r.qualC)},
+      {t:"OPE",num:1,f:r=>badge(r.ope)}
+    ],anEq);
+
+    tabela($("tAnEqDia"),[
+      {t:"Data",f:r=>brDate(r.data)},
+      {t:"Equipe",f:r=>esc(semSufixo(r.eq))},
+      {t:"Turnos",f:r=>r.turnos.join(", ")},
+      {t:"Turno real",num:1,f:r=>hhmm(r.turnoRealMin)},
+      {t:"Paradas",num:1,f:r=>hhmm(r.paradaMin)},
+      {t:"Disponibilidade",num:1,f:r=>badge(capV(r.disp))},
+      {t:"Realizados",num:1,f:r=>r.real},
+      {t:"Imposs.",num:1,f:r=>r.imposs},
+      {t:"Válidos",num:1,f:r=>r.validos},
+      {t:"Performance",num:1,f:r=>badge(capV(r.perf))},
+      {t:"Qualidade",num:1,f:r=>badge(capV(r.qual))},
+      {t:"OPE",num:1,f:r=>badge(opeDe(r))}
+    ],eqDia);
   
     /* ---------- DISPONIBILIDADE ---------- */
     kpi("dKpi",a.dispC,`${hhmm(a.turnoRealMin)} de ${hhmm(a.tempoTotal)} · perda de ${hhmm(a.tempoTotal-a.turnoRealMin)}`,"dKpiBar");
@@ -1222,86 +1237,86 @@
       {t:"Observação",f:r=>esc(r.obs||"—")}
     ],parTodas.slice().sort((x,y)=>x.dtIni-y.dtIni),r=>r.orfa?"orfa":"");
   
-    /* ---------- PERFORMANCE (por tempo) ---------- */
-    kpi("pKpi",a.perfC,`Meta ${hhmmss(metaT)} ÷ produtividade real ${hhmmss(a.produtReal)} · ${a.validos} válidos em ${hhmm(a.turnoRealMin)}`,"pKpiBar");
+    /* ---------- PERFORMANCE (por quantidade — 15 por equipe/dia) ---------- */
+    kpi("pKpi",a.perfC,`${a.real} realizados ÷ ${fmtQ(a.metaProd)} de meta · ${a.equipeDias} equipe-dia`,"pKpiBar");
     setT("pReal",a.real);
     setT("pRealSub",`${a.validos} válidos (produção − impossibilidades) · ${eqs.length} equipe(s) × ${datas.length} data(s)`);
-    setT("pMeta",hhmm(a.tempoNec));
-    setT("pMetaSub",`Tempo necessário na meta: ${a.validos} válidos × ${hhmm(metaT)}`);
-    const gapT=(a.metaTempo??metaT)-(a.produtReal??0);
-    setT("pGap",(a.produtReal==null?"—":(gapT>=0?"+":"−")+hhmm(Math.abs(gapT))));
-    setC("pGap",gapT>=0?"var(--ok)":"var(--bad)");
-    setT("pGapSub",gapT>=0?"Produtividade melhor que a meta de tempo":"Tempo por atendimento acima da meta");
+    setT("pMeta",fmtQ(a.metaProd));
+    setT("pMetaSub",`Meta de 15 por equipe/dia · ${a.equipeDias} equipe-dia no filtro${a.rateados?` · ${a.rateados} turno(s) com meta rateada`:""}`);
+    const gapQ=(a.real||0)-(a.metaProd||0);
+    setT("pGap",(a.metaProd==null?"—":(gapQ>=0?"+":"−")+fmtQ(Math.abs(gapQ))+" chamado(s)"));
+    setC("pGap",gapQ>=0?"var(--ok)":"var(--bad)");
+    setT("pGapSub",gapQ>=0?`Acima da meta em ${fmtQ(Math.abs(gapQ))} chamado(s)`:`Faltam ${fmtQ(Math.abs(gapQ))} chamado(s) para a meta`);
   
-    /* equipes necessárias × disponíveis — agora por tempo */
+    /* equipes necessárias × disponíveis — cálculo por quantidade (realizados ÷ 15) */
     const dias=datas.map(d=>{
       const sub=gs.filter(g=>g.data===d);
       const agr=agregar(sub);
-      const capTurno=uniq(sub.map(g=>g.metaDisp)).reduce((s,x)=>s+x,0)/Math.max(uniq(sub.map(g=>g.metaDisp)).length,1)||390;
-      return {d, real:agr.real, validos:agr.validos, tempoNec:agr.tempoNec,
+      return {d, real:agr.real, validos:agr.validos,
               disp:new Set(sub.map(g=>g.eq)).size,
-              nec:Math.ceil(agr.tempoNec/Math.max(capTurno,1))};
+              nec:Math.ceil(agr.real/15)};
     });
     const mNec=dias.length?soma(dias,x=>x.nec)/dias.length:null;
     const mDisp=dias.length?soma(dias,x=>x.disp)/dias.length:null;
     setT("pEqNec",mNec==null?"—":mNec.toFixed(1));
     setT("pEqNecSub",dias.length
-      ? `Média por dia · ${hhmm(a.tempoNec)} de trabalho na meta ÷ turno real · pico de ${Math.max(...dias.map(x=>x.nec))}`
+      ? `Média por dia · ${a.real} realizados no período ÷ meta de 15/dia · pico de ${Math.max(...dias.map(x=>x.nec))}`
       : "Sem dados no filtro");
     setT("pEqDisp",mDisp==null?"—":mDisp.toFixed(1));
     setT("pEqDispSub",dias.length
       ? `Média por dia · ${eqs.length} equipe(s) distinta(s) com produção apontada`
       : "Sem dados no filtro");
     setT("pExecOS",hhmm(a.execOS));
-    setT("pExecOSSub",a.real?`${hhmm(a.execMin)} em ${a.real} OS · meta de tempo ${hhmm(metaT)}`:"Sem atendimentos no filtro");
+    setT("pExecOSSub",a.real?`${hhmm(a.execMin)} em ${a.real} OS · tempo médio de execução`:"Sem atendimentos no filtro");
     const saldo=(mDisp??0)-(mNec??0);
     setT("pCap",(saldo>0?"+":"")+saldo.toFixed(1));
     setC("pCap",saldo>=0?"var(--ok)":"var(--bad)");
     setT("pCapSub",dias.length
-      ? (saldo>=0?`Folga média de ${saldo.toFixed(1)} equipe/dia frente à carga na meta de tempo`
-                :`Déficit médio de ${Math.abs(saldo).toFixed(1)} equipe/dia frente à carga na meta de tempo`)
+      ? (saldo>=0?`Folga média de ${saldo.toFixed(1)} equipe/dia entre disponíveis e necessárias para a produção`
+                :`Déficit médio de ${Math.abs(saldo).toFixed(1)} equipe/dia entre disponíveis e necessárias para a produção`)
       : "Sem dados no filtro");
-  
-    setT("pMedia",a.produtReal==null?"—":hhmmss(a.produtReal));
-    setC("pMedia",(a.produtReal??1e9)<=metaT?"var(--ok)":"var(--bad)");
-    setT("pMediaSub",`Produtividade real por atendimento válido · meta ${hhmmss(metaT)}`);
+
+    setT("pMedia",a.mediaEqDia==null?"—":fmtQ(a.mediaEqDia));
+    setC("pMedia",a.mediaEqDia==null?"var(--gray)":(a.mediaEqDia>=15?"var(--ok)":"var(--bad)"));
+    setT("pMediaSub",`Chamados realizados por equipe-dia · meta 15`);
     setT("pEqDia",a.equipeDias);
     setT("pEqDiaSub",`${eqs.length} equipe(s) × ${datas.length} data(s) com produção`);
-    const naMeta=eqDia.filter(x=>x.produtReal!=null&&x.produtReal<=metaT).length;
+    const naMeta=eqDia.filter(x=>x.perf!=null&&x.perf>=1).length;
     setT("pNaMeta",`${naMeta}/${eqDia.length}`);
-    setT("pNaMetaSub",eqDia.length?`${pct(naMeta/eqDia.length)} dos equipe-dia dentro da meta de ${hhmm(metaT)}`:"—");
+    setT("pNaMetaSub",eqDia.length?`${pct(naMeta/eqDia.length)} dos equipe-dia bateram a meta de 15 chamados`:"—");
     if(eqDia.length){
-      const comp=eqDia.filter(x=>x.produtReal!=null).sort((x,y)=>x.produtReal-y.produtReal);
+      const comp=eqDia.filter(x=>x.perf!=null).sort((x,y)=>x.perf-y.perf);
       if(comp.length){
-        const mx=comp[0], mn=comp.at(-1);
-        setT("pExtremos",`${hhmm(mx.produtReal)} / ${hhmm(mn.produtReal)}`);
-        setT("pExtremosSub",`melhor ${semSufixo(mx.eq)} em ${brDate(mx.data)} · pior ${semSufixo(mn.eq)} em ${brDate(mn.data)}`);
+        const mn=comp[0], mx=comp.at(-1);
+        setT("pExtremos",`${pct(mx.perf)} / ${pct(mn.perf)}`);
+        setT("pExtremosSub",`melhor ${semSufixo(mx.eq)} em ${brDate(mx.data)} (${mx.real} de ${fmtQ(mx.meta)}) · pior ${semSufixo(mn.eq)} em ${brDate(mn.data)} (${mn.real} de ${fmtQ(mn.meta)})`);
       }
     } else { setT("pExtremos","—"); setT("pExtremosSub","Sem dados no filtro"); }
   
-    const serPerf=[{k:"Tempo necessário (meta)",color:"#009B8D",vals:porData.map(x=>x.tempoNec)},
-                   {k:"Tempo disponível",color:"#c9cfdd",vals:porData.map(x=>x.turnoRealMin)}];
-    chartBarras($("chPerfData"),datas,serPerf,{catLabel:lblData,fmt:v=>hhmm(v),
+    const serPerf=[{k:"Realizados",color:"#009B8D",vals:porData.map(x=>x.real)},
+                   {k:"Meta de produção",color:"#c9cfdd",vals:porData.map(x=>x.metaProd)}];
+    chartBarras($("chPerfData"),datas,serPerf,{catLabel:lblData,fmt:v=>fmtQ(v),
       sub:i=>porData[i].perf==null?"":(porData[i].perf*100).toFixed(0)+"%"});
     legenda($("legPerfData"),serPerf);
-  
-    const serEq=[{k:"Necessárias (carga na meta)",color:"#e8a11c",vals:dias.map(x=>x.nec)},
-                 {k:"Disponíveis",color:"#009B8D",vals:dias.map(x=>x.disp)}];
+
+    const serEq=[{k:"Necessárias (realizados ÷ 15)",color:"#e8a11c",vals:dias.map(x=>x.nec)},
+                 {k:"Disponíveis (equipes com produção)",color:"#009B8D",vals:dias.map(x=>x.disp)}];
     chartBarras($("chPerfEq"),datas,serEq,{catLabel:lblData,
       sub:i=>`${dias[i].disp-dias[i].nec>0?"+":""}${dias[i].disp-dias[i].nec}`});
     legenda($("legPerfEq"),serEq);
-  
+
     hbars($("chPerfEquipe"),eqs.map((e,i)=>({k:semSufixo(e),v:porEq[i].perfC}))
       .sort((x,y)=>(y.v??-1)-(x.v??-1)),v=>pct(v));
-    hbars($("chPerfEqDia"),eqDia.filter(x=>x.produtReal!=null).map(x=>({
+    const itEqDia=eqDia.map(x=>({
         k:`${brDate(x.data).slice(0,5)} · ${semSufixo(x.eq)}`,
-        v:x.produtReal, c:x.produtReal<=metaT?"var(--ok)":(x.produtReal<=metaT*1.3?"var(--warn)":"var(--bad)")
-      })).sort((x,y)=>x.v-y.v),
-      (v)=>`${hhmm(v)} / ${hhmm(metaT)}`);
+        v:x.real, meta:x.meta,
+        c:x.real>=x.meta?"var(--ok)":(x.real>=x.meta*0.8?"var(--warn)":"var(--bad)")
+      })).sort((x,y)=>x.v-y.v);
+    hbars($("chPerfEqDia"),itEqDia,(v,it)=>`${v} / ${fmtQ(it.meta)}`);
     hbars($("chPerfQtdEq"),eqs.map((e,i)=>({k:semSufixo(e),v:porEq[i].validos,c:"var(--teal)"}))
       .sort((x,y)=>y.v-x.v),v=>v);
     donut($("chPerfMotivo"),$("legPerfMotivo"),porChave(a.motivos));
-    renderPorque(a,gs,eqs,porEq,eqDia,metaT);
+    renderPorque(a,gs,eqs,eqDia);
   
     tabela($("tPerf"),[
       {t:"Data",f:r=>brDate(r.data)},{t:"Equipe",f:r=>esc(semSufixo(r.eq))},
@@ -1312,36 +1327,37 @@
       {t:"Realizados",num:1,f:r=>r.real},
       {t:"Imposs.",num:1,f:r=>r.imposs},
       {t:"Válidos",num:1,f:r=>r.validos},
+      {t:"Meta qtd.",num:1,f:r=>r.metaProd.toFixed(r.rateada?1:0)+(r.rateada?" *":"")},
+      {t:"Performance",num:1,f:r=>badge(r.perfC)},
       {t:"Produt. real",num:1,f:r=>hhmmss(r.produtReal)},
       {t:"Meta tempo",num:1,f:r=>hhmm(r.metaTempo)},
       {t:"Tempo necessário",num:1,f:r=>hhmm(r.tempoNec)},
-      {t:"Performance",num:1,f:r=>badge(r.perfC)},
-      {t:"Perf. qtd. (ref.)",num:1,f:r=>pct(r.perfQtd)},
-      {t:"Meta qtd.",num:1,f:r=>r.metaProd.toFixed(r.rateada?1:0)+(r.rateada?" *":"")},
       {t:"Despachados (ref.)",num:1,f:r=>r.desp??"—"},
       {t:"Médio/OS",num:1,f:r=>hhmm(r.execOS)}
     ],gs,r=>r.ambiguo?"amb":"ok");
-  
+
     tabela($("tEqDia"),[
       {t:"Data",f:r=>brDate(r.data)},{t:"Equipe",f:r=>esc(semSufixo(r.eq))},
       {t:"Turnos",f:r=>r.turnos.join(", ")},
+      {t:"Meta",num:1,f:r=>fmtQ(r.meta)},
       {t:"Tempo total",num:1,f:r=>hhmm(r.tempoTotal)},
       {t:"Paradas",num:1,f:r=>hhmm(r.paradaMin)},
       {t:"Disponível",num:1,f:r=>hhmm(r.turnoRealMin)},
       {t:"Realizados",num:1,f:r=>r.real},{t:"Imposs.",num:1,f:r=>r.imposs},
       {t:"Válidos",num:1,f:r=>r.validos},
       {t:"Produt. real",num:1,f:r=>hhmmss(r.produtReal)},
-      {t:"Performance",num:1,f:r=>badge(CFG.cap?Math.min(r.perf??0,1):r.perf)},
-      {t:"Disp.",num:1,f:r=>badge(CFG.cap?Math.min(r.disp??0,1):r.disp)},
-      {t:"Qual.",num:1,f:r=>badge(r.qual)},
-      {t:"Situação",f:r=>(r.produtReal!=null&&r.produtReal<=metaT)
+      {t:"Performance",num:1,f:r=>badge(capV(r.perf))},
+      {t:"Disp.",num:1,f:r=>badge(capV(r.disp))},
+      {t:"Qual.",num:1,f:r=>badge(capV(r.qual))},
+      {t:"OPE",num:1,f:r=>badge(opeDe(r))},
+      {t:"Situação",f:r=>(r.perf!=null&&r.perf>=1)
           ?`<span class="tag" style="background:var(--ok)">Na meta</span>`
-          :`<span class="tag" style="background:var(--bad)">Acima da meta</span>`}
-    ],eqDia,r=>(r.produtReal!=null&&r.produtReal<=metaT)?"ok":"");
+          :`<span class="tag" style="background:var(--bad)">Abaixo da meta</span>`}
+    ],eqDia,r=>(r.perf!=null&&r.perf>=1)?"ok":"perda");
   
     /* ---------- QUALIDADE ---------- */
     kpi("qKpi",a.qualC,a.real?`${a.imposs} impossibilidade(s) em ${a.real} atendimento(s) → ${a.validos} válidos`:"Sem atendimentos","qKpiBar");
-    setT("qReal",a.real); setT("qRealSub",`Atendimentos na Exportação · ${a.validos} válidos alimentam a Performance`);
+    setT("qReal",a.real); setT("qRealSub",`Atendimentos na Exportação · ${a.validos} válidos entram na Qualidade (válidos ÷ realizados)`);
     setT("qImposs",a.imposs);
     setT("qImpossSub",a.real?`${pct(a.imposs/a.real)} do total`:"—");
     setT("qMotivosN",Object.keys(a.motivosImposs).length);
@@ -1371,7 +1387,7 @@
       <li><b>Planejamento:</b> ${EST.fontes.plan||"não carregado"}</li>
       <li><b>FR-CWB-GL-0001 (referência):</b> ${EST.fontes.diario||"não carregada"}</li>
       <li><b>Pasta <code>dados/</code>:</b> lida automaticamente quando a página é servida por HTTP; use <code>dados/manifest.json</code> para apontar os nomes dos arquivos.</li>
-      <li><b>Fórmulas:</b> Disponibilidade = (tempo total − Σ paradas) ÷ tempo total · Performance = ${hhmm(metaT)} ÷ [(tempo total − Σ paradas) ÷ (produção − impossibilidades)] · Qualidade = válidos ÷ produção.</li>
+      <li><b>Fórmulas:</b> Disponibilidade = (tempo total − Σ paradas) ÷ tempo total · Performance = realizados ÷ meta de produção (15 por equipe/dia) · Qualidade = válidos ÷ produção · OPE = Disponibilidade × Performance × Qualidade.</li>
       <li><b>Regra de exclusão:</b> equipes CCO são removidas de atendimentos, paradas e planejamento antes de qualquer cálculo.</li></ul>`);
     tabela($("tTurnos"),[
       {t:"Turno",f:r=>r.turno},{t:"Ano/Mês",f:r=>`${r.ano??"todos"}/${r.mes??"todos"}`},
@@ -1408,7 +1424,7 @@
       "TempoTotalMin","ParadaMin_NoTurno","ParadaMin_Bruta","DisponivelMin","ExecucaoMin",
       "Disponibilidade%","Realizados","Impossibilidades","Validos",
       "ProdutividadeRealMin","MetaTempoMin","TempoNecessarioMin","Performance%",
-      "PerformanceQtd%","MetaQtd","Qualidade%","Ocupacao%","OPE%",
+      "MetaQtd","Qualidade%","Ocupacao%","OPE%",
       "BaseTempoTotal","RecorteParadas","LimiteCem"];
     const n=v=>v==null?"n/d":(v*100).toFixed(1).replace(".",",");
     const d=v=>v==null?"n/d":v.toFixed(2).replace(".",",");
@@ -1416,10 +1432,11 @@
       r.reg.join("/"),Math.round(r.tempoTotal),r.paradaMin.toFixed(0),r.paradaBruta.toFixed(0),
       r.turnoRealMin.toFixed(0),r.execMin.toFixed(0),n(r.dispC),
       r.real,r.imposs,r.validos,d(r.produtReal),r.metaTempo,Math.round(r.tempoNec),
-      n(r.perfC),n(r.perfQtd),r.metaProd.toFixed(r.rateada?1:0),n(r.qualC),n(r.ocup),n(r.ope),
+      n(r.perfC),r.metaProd.toFixed(r.rateada?1:0),n(r.qualC),n(r.ocup),n(r.ope),
       CFG.metodo,CFG.recortarParadas?"SIM":"NAO",CFG.cap?"SIM":"NAO"]);
-    const O=filtrarOrfas().map(p=>["PARADA ORFA",p.eq,p.turno||"—","","","","",
-      p.min.toFixed(0),p.min.toFixed(0),"","","","","","","","","","","","","","","",CFG.metodo,"",""]);
+    const O=filtrarOrfas().map(p=>{ const row=Array(h.length).fill("");
+      row[0]="PARADA ORFA"; row[1]=p.eq; row[2]=p.turno||"—";
+      row[7]=p.min.toFixed(0); row[8]=p.min.toFixed(0); row[23]=CFG.metodo; return row; });
     const csv=[h,...L,...O].map(l=>l.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(";")).join("\n");
     const a=document.createElement("a");
     a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}));
