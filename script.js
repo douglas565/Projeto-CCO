@@ -34,7 +34,7 @@
     fmt:"DD/MM",
     cap:false,              // limitar componentes a 100%
     statusImposs:false,
-    criarOrfa:false,
+    criarOrfa:true,          // paradas sem execução criam o turno (a parada desconta a Disponibilidade — padrão)
     metaDia:true,           // rateio da meta de quantidade (referência)
     perfBase:"qtd",         // tempo | qtd — base da Performance (contrato: realizados ÷ meta de 15/equipe-dia)
     metaTempoMin:23,        // META DE TEMPO por atendimento (0:23)
@@ -614,6 +614,11 @@
   /* ===================== CONSTRUÇÃO DOS GRUPOS ===================== */
   function construir(){
     const g={}, key=(d,e,t)=>`${d}|${e}|${t}`;
+    /* casamento parada × execução tolerante a grafia de equipe (ex.: com/sem " | ENGIE", caixa) */
+    const eqMatch=e=>norm(semSufixo(String(e??"").toUpperCase()));
+    const nkey=(d,e,t)=>`${d}|${eqMatch(e)}|${t}`;
+    const eqCanon={};
+    EST.atend.forEach(a=>{ const n=eqMatch(a.eq); if(!(n in eqCanon)) eqCanon[n]=a.eq; });
     const novo=(d,e,t)=>({data:d,eq:e,turno:t,ats:[],paradas:[],paradaMin:0,paradaBruta:0,execMin:0,
                           primIni:null,ultFim:null,ambiguo:false,reg:[],veic:"",desp:null,recortes:0});
     EST.orfas=[];
@@ -638,18 +643,23 @@
       p.recortada=p.minEfet+0.5<p.min;
       if(p.recortada) o.recortes++;
       o.paradas.push(p); o.paradaMin+=p.minEfet; o.paradaBruta+=p.min; p.orfa=false;
+      p.criou=(o.ats.length===0);   /* vinculada a turno sem execução (turno criado a partir da parada) */
     };
   
+    const gn={}; Object.values(g).forEach(o=>{ gn[nkey(o.data,o.eq,o.turno)]=o; });
     EST.paradas.forEach(p=>{
       const t=turnoDe(p.dtIni);
       p.turno=t.turno; p.dataRef=t.data;
-      const k=key(t.data,p.eq,t.turno);
+      const k=key(t.data,p.eq,t.turno), kn=nkey(t.data,p.eq,t.turno);
       if(g[k]) vincular(g[k],p);
+      else if(gn[kn]) vincular(gn[kn],p);   /* mesmo data/equipe/turno com grafia equivalente (ex.: com/sem " | ENGIE") */
       else if(CFG.criarOrfa&&t.turno){
-        const o=g[k]=novo(t.data,p.eq,t.turno);
-        vincular(o,p); p.criou=true;
+        const o=g[k]=novo(t.data,eqCanon[eqMatch(p.eq)]||p.eq,t.turno); gn[kn]=o;
+        vincular(o,p);
       } else { p.orfa=true; p.minEfet=p.min; EST.orfas.push(p); }
     });
+    const criados=EST.paradas.filter(p=>p.criou).length;
+    if(criados) EST.diag.push(`${criados} parada(s) em turno sem execução apontada — turno(s) criado(s) a partir da parada; a fração na janela do turno desconta da Disponibilidade.`);
   
     const recort=EST.paradas.filter(p=>p.recortada).length;
     if(recort) EST.diag.push(`${recort} parada(s) recortada(s) à janela do turno — só a fração dentro do turno é descontada da Disponibilidade.`);
@@ -1122,7 +1132,7 @@
     setT("kParada",hhmm(a.paradaMin));
     setT("kParadaSub",`${paradas.length} evento(s) vinculado(s)`+
       (a.paradaBruta>a.paradaMin+0.5?` · ${hhmm(a.paradaBruta-a.paradaMin)} fora da janela do turno`:"")+
-      (orfas.length?` · ${orfas.length} órfã(s), ${hhmm(soma(orfas,x=>x.min))} fora do cálculo`:""));
+      (orfas.length?` · ${orfas.length} órfã(s) sem turno atribuído, ${hhmm(soma(orfas,x=>x.min))} fora do cálculo`:""));
     setT("kReal",a.real);
     setT("kRealSub",`${a.validos} válidos · ${eqs.length} equipe(s) · ${datas.length} data(s)`);
     setT("kProdut",hhmmss(a.produtReal));
@@ -1222,8 +1232,8 @@
     setH("dNota", !parTodas.length
       ? "Nenhuma parada no período filtrado. Se o relatório de paradas foi carregado, verifique se as datas coincidem com as dos atendimentos."
       : (orfas.length
-          ? `${paradas.length} parada(s) vinculada(s), ${hhmm(a.paradaMin)} efetivos dentro do turno — descontados do tempo total. <b>${orfas.length} órfã(s)</b>, ${hhmm(soma(orfas,x=>x.min))}, em cinza e <b>fora do cálculo</b>: não há turno com execução na mesma data/equipe/turno.`
-          : "Todas as paradas do filtro estão vinculadas a um turno com execução; cada uma é recortada à janela do turno."));
+          ? `${paradas.length} parada(s) vinculada(s), ${hhmm(a.paradaMin)} efetivos dentro do turno — descontados do tempo total. <b>${orfas.length} órfã(s)</b>, ${hhmm(soma(orfas,x=>x.min))}, em cinza e <b>fora do cálculo</b>: sem turno atribuído (horário fora das janelas de turno configuradas).`
+          : "Todas as paradas do filtro estão vinculadas a um turno — mesmo sem execução apontada — e descontadas do tempo disponível; cada uma é recortada à janela do turno."));
   
     tabela($("tParadas"),[
       {t:"Equipe",f:r=>esc(semSufixo(r.eq))},{t:"Início",f:r=>brDT(r.dtIni)},
@@ -1233,7 +1243,8 @@
       {t:"Tipo",f:r=>esc(r.tipo)},{t:"Motivo",f:r=>esc(r.motivo)},
       {t:"Turno atribuído",f:r=>`${r.turno||"—"} de ${brDate(r.dataRef)}`},
       {t:"Vínculo",f:r=>r.orfa?`<span class="tag" style="background:var(--bad)">Órfã</span>`
-                              :`<span class="tag" style="background:var(--ok)">Vinculada</span>`},
+                              :(r.criou?`<span class="tag" style="background:var(--warn)">Vinculada — turno criado</span>`
+                                       :`<span class="tag" style="background:var(--ok)">Vinculada</span>`)},
       {t:"Observação",f:r=>esc(r.obs||"—")}
     ],parTodas.slice().sort((x,y)=>x.dtIni-y.dtIni),r=>r.orfa?"orfa":"");
   

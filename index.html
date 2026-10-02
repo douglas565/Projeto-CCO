@@ -41,7 +41,7 @@
       <select id="cfgFmt"><option value="DD/MM">DD/MM/AAAA</option><option value="MM/DD">MM/DD/AAAA</option></select></div>
     <label class="chk"><input type="checkbox" id="cfgMetaDia" checked> Meta de 15 por equipe/dia (rateada entre turnos)</label>
     <label class="chk"><input type="checkbox" id="cfgCap"> Limitar componentes a 100%</label>
-    <label class="chk"><input type="checkbox" id="cfgOrfa"> Criar turno a partir de parada sem execução</label>
+    <label class="chk"><input type="checkbox" id="cfgOrfa" checked> Criar turno a partir de parada sem execução</label>
   </div>
 
   <!-- ======== FILTROS ======== -->
@@ -270,6 +270,7 @@
     <h2 class="sec">Notas metodológicas</h2>
     <div class="card notes"><ul>
       <li><b>Disponibilidade</b> = (Turno real − paradas) ÷ Turno real. O <b>turno real</b> é a coluna <b>META DISPONIBILIDADE</b> da planilha Horários: o turno já descontados mobilização, desmobilização, locomoção e intervalo/almoço. O único fator que reduz o indicador abaixo de 100% é o <b>relatório de paradas</b>.</li>
+      <li><b>Paradas</b> são atribuídas ao turno pela janela (data/equipe/turno) e recortadas a ela. Uma parada em turno <b>sem execução apontada</b> também desconta a Disponibilidade — o turno é criado a partir da parada (opção "Criar turno a partir de parada sem execução", ligada por padrão; desmarque-a para manter essas paradas em cinza, fora do cálculo). O casamento de equipes tolera diferenças de grafia (ex.: com/sem " | ENGIE").</li>
       <li>Validação da base: META DISPONIBILIDADE ÷ META PRODUÇÃO = META PRODUTIVIDADE (350 ÷ 15 = 0:23; 290 ÷ 15 = 0:19).</li>
       <li><b>Início</b> e <b>Conclusão</b> da Exportação não entram na Disponibilidade: servem para alocar a OS em data/equipe/turno e para tempo de execução, ocupação e produtividade.</li>
       <li><b>Performance</b> = realizados ÷ meta de produção, <b>sem componente de tempo</b>. A meta é de <b>15 chamados por equipe/dia</b>; quando a equipe atua em mais de um turno no mesmo dia, os 15 são rateados entre os turnos para que a soma do dia feche em 15. Desmarcando a opção nos parâmetros, a meta passa a valer 15 por turno. É esta razão que define os 100%: 15 de 15 chamados = 100%.</li>
