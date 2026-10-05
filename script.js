@@ -85,7 +85,7 @@
   const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
   const minDia = d => d.getHours()*60+d.getMinutes();
   const soma = (a,f) => a.reduce((s,x)=>s+(f(x)||0),0);
-  const semSufixo = e => String(e??"").replace(" | ENGIE","");
+  const semSufixo = e => String(e??"").replace(/\s*\|\s*[A-Z0-9]+$/i,"").trim();
   
   /* equipes ignoradas (CCO = centro de controle, não é equipe de campo) */
   const EQ_IGNORAR = /(^|[^A-Z0-9])CCO([^A-Z0-9]|$)/;
@@ -614,7 +614,7 @@
   /* ===================== CONSTRUÇÃO DOS GRUPOS ===================== */
   function construir(){
     const g={}, key=(d,e,t)=>`${d}|${e}|${t}`;
-    /* casamento parada × execução tolerante a grafia de equipe (ex.: com/sem " | ENGIE", caixa) */
+    /* casamento parada × execução tolerante a grafia de equipe (ex.: com/sem " | ENGIE/ENGE", caixa) */
     const eqMatch=e=>norm(semSufixo(String(e??"").toUpperCase()));
     const nkey=(d,e,t)=>`${d}|${eqMatch(e)}|${t}`;
     const eqCanon={};
